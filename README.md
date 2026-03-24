@@ -31,14 +31,6 @@ justservice/
 │       ├── hooks/              # Custom React hooks
 │       ├── lib/api.ts          # Centralized typed API client
 │       └── proxy.ts            # Edge proxy: session-cookie-based auth routing
-├── packages/
-│   ├── ui/                     # Shared shadcn/radix-nova component library
-│   │   └── src/
-│   │       ├── components/     # All shadcn components live here
-│   │       └── styles/
-│   │           └── globals.css # Tailwind v4 CSS-first config + theme tokens
-│   ├── eslint-config/          # Shared ESLint config
-│   └── typescript-config/      # Shared tsconfig bases
 ├── plugins/                    # Plugin binaries (standalone gRPC servers)
 │   ├── sdk/                    # Go SDK for building plugins
 │   ├── hello-world/            # Example sync plugin
@@ -300,13 +292,13 @@ All configurable values are documented in [`deploy/helm/justservice/values.yaml`
 
 ```bash
 # Frontend — from repo root
-pnpm dev          # Start all apps with Turbopack
-pnpm build        # Build all packages/apps
-pnpm lint         # Lint everything
-pnpm typecheck    # Type-check everything
-pnpm format       # Format everything
+pnpm dev          # Start the Next.js app with Turbopack
+pnpm build        # Build the Next.js app
+pnpm lint         # Lint the frontend
+pnpm typecheck    # Type-check the frontend
+pnpm format       # Format the frontend
 
-# Add a shadcn component to the shared UI package
+# Add a shadcn component to the frontend app
 pnpm dlx shadcn@latest add <component> -c apps/web
 
 # Go API — from apps/api/

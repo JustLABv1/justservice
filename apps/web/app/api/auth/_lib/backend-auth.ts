@@ -47,7 +47,9 @@ export async function jsonErrorFrom(response: Response) {
 
   try {
     body = (await response.json()) as ErrorBody
-  } catch {}
+  } catch {
+    body = null
+  }
 
   return NextResponse.json(
     { error: body?.error || `HTTP ${response.status}` },

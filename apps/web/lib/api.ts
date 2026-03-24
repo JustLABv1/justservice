@@ -33,7 +33,9 @@ async function request<T>(
     try {
       const body = await res.json()
       message = body.error || message
-    } catch {}
+    } catch {
+      message = `HTTP ${res.status}`
+    }
     throw new ApiError(message, res.status)
   }
   return res.json() as Promise<T>

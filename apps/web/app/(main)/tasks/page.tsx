@@ -37,8 +37,9 @@ export default function TasksPage() {
   const { isLoading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const initialQuery = searchParams.get("q") ?? ""
   const { openDetail } = useDetailPanel()
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState(initialQuery)
   const [allTasks, setAllTasks] = useState<TaskDefinition[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
@@ -50,10 +51,6 @@ export default function TasksPage() {
     if (authLoading) return
     tasksApi.list().then(setAllTasks).finally(() => setIsLoading(false))
   }, [authLoading])
-
-  useEffect(() => {
-    setQuery(searchParams.get("q") ?? "")
-  }, [searchParams])
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {

@@ -5,12 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Frontend development (pnpm workspace)
-pnpm dev          # Start all apps (Next.js with Turbopack)
-pnpm build        # Build all packages/apps
-pnpm lint         # Lint all packages/apps
-pnpm typecheck    # Type-check all packages/apps
-pnpm format       # Format all packages/apps
+# Frontend development (repo root delegates to apps/web)
+pnpm dev          # Start the Next.js app (Turbopack)
+pnpm build        # Build the Next.js app
+pnpm lint         # Lint the frontend
+pnpm typecheck    # Type-check the frontend
+pnpm format       # Format the frontend
 
 # Add a shadcn component (run from repo root)
 pnpm dlx shadcn@latest add <component> -c apps/web
@@ -31,11 +31,9 @@ JustService is a self-service task execution platform. Users browse and run "tas
 
 ### Monorepo structure
 
-**`apps/web`** — Next.js 16 app (App Router, React 19, Turbopack). Uses `@workspace/ui` for all shared UI. App-local code lives in `components/`, `hooks/`, and `lib/`. The `components/theme-provider.tsx` wraps the app with `next-themes` and wires a `d` hotkey for dark/light toggle.
+**`apps/web`** — Next.js 16 app (App Router, React 19, Turbopack). App-local code lives in `components/`, `hooks/`, and `lib/`. The `components/theme-provider.tsx` wraps the app with `next-themes` and wires a `d` hotkey for dark/light toggle.
 
 **`apps/api`** — Go 1.26 REST + gRPC backend. HTTP on port 8080, gRPC on port 9090. Chi router, PostgreSQL via sqlx, zerolog for structured logging, viper for config.
-
-**`packages/ui`** — Shared component library. All shadcn components land here (in `src/components/`). Tailwind CSS v4 is configured here — `src/styles/globals.css` is the single stylesheet imported by the app as `@workspace/ui/globals.css`.
 
 **`plugins/`** — Go plugin binaries. Each plugin is a standalone gRPC server that registers itself with the API on startup. The `plugins/sdk/` package provides the base `Handler` interface.
 
@@ -46,15 +44,14 @@ JustService is a self-service task execution platform. Users browse and run "tas
 - `lib/api.ts` is the centralized API client. All typed request/response interfaces and endpoint functions live there.
 - Every page component uses `"use client"` — there are no React Server Components in use.
 
-**CSS/Tailwind:** Tailwind v4 scans both `apps/**` and `packages/ui/**` from the single `globals.css` in the UI package. There is no `tailwind.config.*` file — configuration is CSS-first.
+**CSS/Tailwind:** Tailwind v4 is configured directly in the frontend app. There is no `tailwind.config.*` file — configuration is CSS-first.
 
-**shadcn style:** `radix-nova` with `neutral` base color, CSS variables enabled, Lucide icons. Utility alias `utils` resolves to `@workspace/ui/lib/utils`.
+**shadcn style:** `radix-nova` with `neutral` base color, CSS variables enabled, Lucide icons.
 
 **Path aliases (in `apps/web`):**
 - `@/components` → `apps/web/components`
 - `@/hooks` → `apps/web/hooks`
 - `@/lib` → `apps/web/lib`
-- `@workspace/ui/components/*` → shared shadcn components
 
 ### Go API structure
 
