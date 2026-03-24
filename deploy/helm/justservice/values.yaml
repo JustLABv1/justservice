@@ -1,0 +1,98 @@
+## Global image settings
+## When using a private registry, set global.imageRegistry here.
+global:
+  imageRegistry: ""
+
+# ---------- API ----------
+api:
+  image:
+    registry: ghcr.io
+    repository: justlab/justservice/api
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    httpPort: 8080
+    grpcPort: 9090
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  # Extra environment variables
+  extraEnv: []
+  #  - name: JUSTSERVICE_LOG_LEVEL
+  #    value: debug
+
+# ---------- Web ----------
+web:
+  image:
+    registry: ghcr.io
+    repository: justlab/justservice/web
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  # URL that the browser uses to reach the API.
+  # Must be a publicly accessible URL when running in k8s.
+  apiUrl: "https://api.justservice.example.com"
+
+# ---------- Ingress ----------
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: justservice.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /
+          pathType: Prefix
+          service: web
+  tls: []
+  #  - secretName: justservice-tls
+  #    hosts:
+  #      - justservice.example.com
+
+# ---------- Configuration ----------
+config:
+  # REQUIRED — change before deploying
+  jwtSecret: ""
+  logLevel: info
+  logFormat: json
+
+# ---------- Database ----------
+database:
+  # Full PostgreSQL DSN. Required when postgresql.enabled = false.
+  dsn: ""
+
+# ---------- Bundled PostgreSQL ----------
+# Set enabled: false and provide database.dsn for production deployments.
+postgresql:
+  enabled: true
+  username: justservice
+  password: justservice
+  database: justservice
+  storage: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

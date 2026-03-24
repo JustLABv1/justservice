@@ -1,0 +1,11 @@
+apiVersion: v2
+name: justservice
+description: JustService — self-service task portal with plugin-based execution
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - justservice
+  - self-service
+  - automation
+home: https://github.com/justlab/justservice

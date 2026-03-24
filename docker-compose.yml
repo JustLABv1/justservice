@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: justservice
+      POSTGRES_PASSWORD: justservice
+      POSTGRES_DB: justservice
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U justservice"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: apps/api
+    environment:
+      JUSTSERVICE_DATABASE_DSN: postgres://justservice:justservice@postgres:5432/justservice?sslmode=disable
+      JUSTSERVICE_JWT_SECRET: change-me-in-production-use-at-least-32-chars
+      JUSTSERVICE_LOG_LEVEL: info
+      JUSTSERVICE_LOG_FORMAT: pretty
+    ports:
+      - "8080:8080"   # HTTP
+      - "9090:9090"   # gRPC plugin registration
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # Example plugins — remove or disable if not needed
+  hello-world:
+    build:
+      context: plugins
+      dockerfile: ../deploy/docker/plugin.Dockerfile
+      args:
+        PLUGIN_DIR: hello-world
+    environment:
+      GRPC_ADDR: "0.0.0.0:9001"
+      BACKEND_GRPC_ADDR: "api:9090"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  webhook:
+    build:
+      context: plugins
+      dockerfile: ../deploy/docker/plugin.Dockerfile
+      args:
+        PLUGIN_DIR: webhook
+    environment:
+      GRPC_ADDR: "0.0.0.0:9002"
+      BACKEND_GRPC_ADDR: "api:9090"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

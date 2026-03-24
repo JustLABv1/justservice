@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package plugin.v1;
+
+option go_package = "github.com/justlab/justservice/api/proto/plugin/v1;pluginv1";
+
+// PluginService is implemented by the BACKEND. Plugins call it to register.
+service PluginService {
+  // Register is called by a plugin on startup to announce itself.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // Heartbeat keeps the plugin connection alive.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+// TaskExecutorService is implemented by PLUGINS. The backend calls it to run tasks.
+service TaskExecutorService {
+  // GetTaskDefinitions returns all tasks this plugin can execute.
+  rpc GetTaskDefinitions(GetTaskDefinitionsRequest) returns (GetTaskDefinitionsResponse);
+  // ValidateInput validates user input before execution.
+  rpc ValidateInput(ValidateInputRequest) returns (ValidateInputResponse);
+  // ExecuteSync executes a short-lived task synchronously.
+  rpc ExecuteSync(TaskRequest) returns (TaskResponse);
+  // ExecuteAsync executes a long-running task and streams progress.
+  rpc ExecuteAsync(TaskRequest) returns (stream TaskProgress);
+}
+
+// --- Plugin Registration ---
+
+message RegisterRequest {
+  string name        = 1;
+  string description = 2;
+  string grpc_address = 3; // Address where the plugin's TaskExecutorService listens
+  string version     = 4;
+}
+
+message RegisterResponse {
+  string plugin_id = 1;
+  bool   accepted  = 2;
+  string message   = 3;
+}
+
+message HeartbeatRequest {
+  string plugin_id = 1;
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+}
+
+// --- Task Definitions ---
+
+message GetTaskDefinitionsRequest {}
+
+message GetTaskDefinitionsResponse {
+  repeated TaskDefinition tasks = 1;
+}
+
+message TaskDefinition {
+  string name         = 1;
+  string slug         = 2;
+  string description  = 3;
+  string category     = 4;
+  bool   is_sync      = 5;
+  string input_schema = 6; // JSON Schema string
+  repeated string required_permissions = 7;
+}
+
+// --- Validation ---
+
+message ValidateInputRequest {
+  string task_slug   = 1;
+  string input_json  = 2;
+}
+
+message ValidateInputResponse {
+  bool   valid   = 1;
+  repeated string errors = 2;
+}
+
+// --- Execution ---
+
+message UserContext {
+  string user_id   = 1;
+  string username  = 2;
+  string email     = 3;
+  repeated string roles = 4;
+}
+
+message TaskRequest {
+  string       execution_id = 1;
+  string       task_slug    = 2;
+  string       input_json   = 3;
+  UserContext  user         = 4;
+}
+
+message TaskResponse {
+  string output_json = 1;
+  bool   success     = 2;
+  string error       = 3;
+}
+
+message TaskProgress {
+  int32  progress_pct = 1; // 0-100
+  string message      = 2;
+  string status       = 3; // running, completed, failed
+  string output_json  = 4; // set when status=completed
+  string error        = 5; // set when status=failed
+}

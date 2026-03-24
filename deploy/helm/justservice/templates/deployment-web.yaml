@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "justservice.fullname" . }}-web
+  labels:
+    {{- include "justservice.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- $ctx := dict "component" "web" }}
+      {{- include "justservice.selectorLabels" (merge . $ctx) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "justservice.labels" . | nindent 8 }}
+        {{- include "justservice.selectorLabels" (merge . $ctx) | nindent 8 }}
+    spec:
+      containers:
+        - name: web
+          image: "{{ .Values.web.image.registry }}/{{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}"
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            # NEXT_PUBLIC_API_URL is baked in at image build time.
+            # Update values.yaml and rebuild the image when the API URL changes.
+            - name: NEXT_PUBLIC_API_URL
+              value: {{ .Values.web.apiUrl | quote }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
