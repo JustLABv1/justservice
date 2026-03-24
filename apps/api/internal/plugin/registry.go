@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -47,8 +49,15 @@ func (r *Registry) RegisterPlugin(ctx context.Context, req *pluginv1.RegisterReq
 	}
 
 	now := time.Now()
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("begin plugin sync transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	var pluginID uuid.UUID
-	err = r.db.GetContext(ctx, &pluginID, `
+	err = tx.GetContext(ctx, &pluginID, `
 		INSERT INTO plugins (id, name, description, grpc_address, status, registered_at, last_heartbeat)
 		VALUES ($1, $2, $3, $4, 'healthy', $5, $5)
 		ON CONFLICT (name) DO UPDATE
@@ -63,9 +72,16 @@ func (r *Registry) RegisterPlugin(ctx context.Context, req *pluginv1.RegisterReq
 		return nil, fmt.Errorf("upsert plugin: %w", err)
 	}
 
+	slugs := make([]string, 0, len(defs.Tasks))
 	for _, td := range defs.Tasks {
-		schemaBytes, _ := json.Marshal(td.InputSchema)
-		_, err := r.db.ExecContext(ctx, `
+		schemaBytes, err := normalizeTaskSchema(td.InputSchema)
+		if err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("decode schema for task %q: %w", td.Slug, err)
+		}
+
+		slugs = append(slugs, td.Slug)
+		_, err = tx.ExecContext(ctx, `
 			INSERT INTO task_definitions (id, plugin_id, name, slug, description, category, input_schema_json, is_sync)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			ON CONFLICT (slug) DO UPDATE
@@ -74,10 +90,31 @@ func (r *Registry) RegisterPlugin(ctx context.Context, req *pluginv1.RegisterReq
 			      category = EXCLUDED.category,
 			      input_schema_json = EXCLUDED.input_schema_json,
 			      is_sync = EXCLUDED.is_sync
-		`, uuid.New(), pluginID, td.Name, td.Slug, td.Description, td.Category, string(schemaBytes), td.IsSync)
+		`, uuid.New(), pluginID, td.Name, td.Slug, td.Description, td.Category, schemaBytes, td.IsSync)
 		if err != nil {
-			log.Error().Err(err).Str("slug", td.Slug).Msg("sync task definition")
+			conn.Close()
+			return nil, fmt.Errorf("sync task definition %q: %w", td.Slug, err)
 		}
+	}
+
+	if len(slugs) == 0 {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM task_definitions WHERE plugin_id = $1`, pluginID); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("cleanup task definitions for plugin %q: %w", req.Name, err)
+		}
+	} else {
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM task_definitions
+			WHERE plugin_id = $1 AND NOT (slug = ANY($2))
+		`, pluginID, pq.Array(slugs)); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("cleanup stale task definitions for plugin %q: %w", req.Name, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("commit plugin sync transaction: %w", err)
 	}
 
 	r.mu.Lock()
@@ -92,6 +129,19 @@ func (r *Registry) RegisterPlugin(ctx context.Context, req *pluginv1.RegisterReq
 		Accepted: true,
 		Message:  "registered successfully",
 	}, nil
+}
+
+func normalizeTaskSchema(raw string) (json.RawMessage, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return json.RawMessage(`{}`), nil
+	}
+
+	if !json.Valid([]byte(trimmed)) {
+		return nil, fmt.Errorf("invalid JSON schema")
+	}
+
+	return json.RawMessage(trimmed), nil
 }
 
 func (r *Registry) Heartbeat(ctx context.Context, pluginID uuid.UUID) error {

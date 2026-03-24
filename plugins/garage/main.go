@@ -46,7 +46,10 @@ type keyDetail struct {
 type bucketListItem struct {
 	ID            string   `json:"id"`
 	GlobalAliases []string `json:"globalAliases"`
-	LocalAliases  []string `json:"localAliases"`
+	LocalAliases  []struct {
+		AccessKeyID string `json:"accessKeyId"`
+		Alias       string `json:"alias"`
+	} `json:"localAliases"`
 }
 
 type bucketDetail struct {
@@ -112,7 +115,7 @@ func (c *garageClient) do(ctx context.Context, method, path string, body any) ([
 }
 
 func (c *garageClient) listKeys(ctx context.Context) ([]keyListItem, error) {
-	data, code, err := c.do(ctx, http.MethodGet, "/v2/key?list", nil)
+	data, code, err := c.do(ctx, http.MethodGet, "/v2/ListKeys", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +127,7 @@ func (c *garageClient) listKeys(ctx context.Context) ([]keyListItem, error) {
 }
 
 func (c *garageClient) getKey(ctx context.Context, id string) (*keyDetail, error) {
-	data, code, err := c.do(ctx, http.MethodGet, "/v2/key?id="+id, nil)
+	data, code, err := c.do(ctx, http.MethodGet, "/v2/GetKeyInfo?id="+id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +142,7 @@ func (c *garageClient) getKey(ctx context.Context, id string) (*keyDetail, error
 }
 
 func (c *garageClient) createKey(ctx context.Context, name string) (*keyDetail, error) {
-	data, code, err := c.do(ctx, http.MethodPost, "/v2/key", map[string]any{"name": name})
+	data, code, err := c.do(ctx, http.MethodPost, "/v2/CreateKey", map[string]any{"name": name})
 	if err != nil {
 		return nil, err
 	}
@@ -151,18 +154,18 @@ func (c *garageClient) createKey(ctx context.Context, name string) (*keyDetail, 
 }
 
 func (c *garageClient) deleteKey(ctx context.Context, id string) error {
-	data, code, err := c.do(ctx, http.MethodDelete, "/v2/key?id="+id, nil)
+	data, code, err := c.do(ctx, http.MethodPost, "/v2/DeleteKey?id="+id, nil)
 	if err != nil {
 		return err
 	}
-	if code != http.StatusNoContent && code != http.StatusOK {
+	if code != http.StatusOK {
 		return apiError(code, data)
 	}
 	return nil
 }
 
 func (c *garageClient) listBuckets(ctx context.Context) ([]bucketListItem, error) {
-	data, code, err := c.do(ctx, http.MethodGet, "/v2/bucket?list", nil)
+	data, code, err := c.do(ctx, http.MethodGet, "/v2/ListBuckets", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +177,7 @@ func (c *garageClient) listBuckets(ctx context.Context) ([]bucketListItem, error
 }
 
 func (c *garageClient) getBucket(ctx context.Context, id string) (*bucketDetail, error) {
-	data, code, err := c.do(ctx, http.MethodGet, "/v2/bucket?id="+id, nil)
+	data, code, err := c.do(ctx, http.MethodGet, "/v2/GetBucketInfo?id="+id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -189,8 +192,8 @@ func (c *garageClient) getBucket(ctx context.Context, id string) (*bucketDetail,
 }
 
 func (c *garageClient) createBucket(ctx context.Context, globalAlias string) (*bucketDetail, error) {
-	data, code, err := c.do(ctx, http.MethodPost, "/v2/bucket", map[string]any{
-		"globalAliases": []string{globalAlias},
+	data, code, err := c.do(ctx, http.MethodPost, "/v2/CreateBucket", map[string]any{
+		"globalAlias": globalAlias,
 	})
 	if err != nil {
 		return nil, err
@@ -203,18 +206,18 @@ func (c *garageClient) createBucket(ctx context.Context, globalAlias string) (*b
 }
 
 func (c *garageClient) deleteBucket(ctx context.Context, id string) error {
-	data, code, err := c.do(ctx, http.MethodDelete, "/v2/bucket?id="+id, nil)
+	data, code, err := c.do(ctx, http.MethodPost, "/v2/DeleteBucket?id="+id, nil)
 	if err != nil {
 		return err
 	}
-	if code != http.StatusNoContent && code != http.StatusOK {
+	if code != http.StatusOK {
 		return apiError(code, data)
 	}
 	return nil
 }
 
 func (c *garageClient) allowKey(ctx context.Context, bucketID, keyID string, read, write bool) error {
-	data, code, err := c.do(ctx, http.MethodPost, "/v2/bucket/allow", map[string]any{
+	data, code, err := c.do(ctx, http.MethodPost, "/v2/AllowBucketKey", map[string]any{
 		"bucketId":    bucketID,
 		"accessKeyId": keyID,
 		"permissions": map[string]any{"read": read, "write": write, "owner": false},
@@ -229,7 +232,7 @@ func (c *garageClient) allowKey(ctx context.Context, bucketID, keyID string, rea
 }
 
 func (c *garageClient) denyKey(ctx context.Context, bucketID, keyID string, read, write bool) error {
-	data, code, err := c.do(ctx, http.MethodPost, "/v2/bucket/deny", map[string]any{
+	data, code, err := c.do(ctx, http.MethodPost, "/v2/DenyBucketKey", map[string]any{
 		"bucketId":    bucketID,
 		"accessKeyId": keyID,
 		"permissions": map[string]any{"read": read, "write": write, "owner": false},
@@ -278,6 +281,44 @@ func qualifiedAlias(username, name string) string { return userNS(username) + na
 func isOwned(username, qualName string) bool      { return strings.HasPrefix(qualName, userNS(username)) }
 func friendlyName(username, qualName string) string {
 	return strings.TrimPrefix(qualName, userNS(username))
+}
+
+func ownedGlobalAlias(username string, aliases []string) string {
+	for _, alias := range aliases {
+		if isOwned(username, alias) {
+			return alias
+		}
+	}
+	return ""
+}
+
+type resolvedBucket struct {
+	ID          string
+	Name        string
+	DisplayName string
+}
+
+func resolveOwnedBucket(ctx context.Context, g *garageClient, username, input string) (*resolvedBucket, error) {
+	target := strings.TrimSpace(input)
+	if target == "" {
+		return nil, fmt.Errorf("bucket name is required")
+	}
+	all, err := g.listBuckets(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list buckets: %w", err)
+	}
+	qualified := qualifiedAlias(username, target)
+	for _, bucket := range all {
+		alias := ownedGlobalAlias(username, bucket.GlobalAliases)
+		if alias == "" {
+			continue
+		}
+		displayName := friendlyName(username, alias)
+		if alias == target || alias == qualified || displayName == target {
+			return &resolvedBucket{ID: bucket.ID, Name: alias, DisplayName: displayName}, nil
+		}
+	}
+	return nil, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -336,19 +377,18 @@ func opListBuckets(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) 
 	if err != nil {
 		return nil, fmt.Errorf("list buckets: %w", err)
 	}
-	ns := userNS(ec.Username)
 	type row struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		DisplayName string `json:"display_name"`
 	}
 	var result []row
 	for _, b := range all {
-		for _, alias := range b.GlobalAliases {
-			if strings.HasPrefix(alias, ns) {
-				result = append(result, row{ID: b.ID, Name: strings.TrimPrefix(alias, ns)})
-				break
-			}
+		alias := ownedGlobalAlias(ec.Username, b.GlobalAliases)
+		if alias == "" {
+			continue
 		}
+		result = append(result, row{ID: b.ID, Name: alias, DisplayName: friendlyName(ec.Username, alias)})
 	}
 	if result == nil {
 		result = []row{}
@@ -367,68 +407,76 @@ func opCreateBucket(ctx context.Context, g *garageClient, ec sdk.ExecuteContext)
 	if err != nil {
 		return nil, fmt.Errorf("create bucket: %w", err)
 	}
+	actualName := ownedGlobalAlias(ec.Username, b.GlobalAliases)
+	if actualName == "" {
+		actualName = alias
+	}
 	return map[string]any{
-		"id":      b.ID,
-		"name":    name,
-		"message": fmt.Sprintf("Bucket %q created successfully", name),
+		"id":           b.ID,
+		"name":         actualName,
+		"display_name": name,
+		"message":      fmt.Sprintf("Bucket %q created successfully", actualName),
 	}, nil
 }
 
 func opDeleteBucket(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
 	name, _ := ec.Input["name"].(string)
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, fmt.Errorf("bucket name is required")
-	}
-	alias := qualifiedAlias(ec.Username, name)
-	bucketID, err := findBucketIDByAlias(ctx, g, alias)
+	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, name)
 	if err != nil {
 		return nil, err
 	}
-	if bucketID == "" {
-		return nil, fmt.Errorf("bucket %q not found", name)
+	if bucket == nil {
+		return nil, fmt.Errorf("bucket %q not found", strings.TrimSpace(name))
 	}
-	if err := g.deleteBucket(ctx, bucketID); err != nil {
+	if err := g.deleteBucket(ctx, bucket.ID); err != nil {
 		return nil, fmt.Errorf("delete bucket: %w", err)
 	}
-	return map[string]any{"name": name, "deleted": true, "message": fmt.Sprintf("Bucket %q deleted", name)}, nil
+	return map[string]any{
+		"name":         bucket.Name,
+		"display_name": bucket.DisplayName,
+		"deleted":      true,
+		"message":      fmt.Sprintf("Bucket %q deleted", bucket.Name),
+	}, nil
 }
 
 func opGetBucketInfo(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
 	name, _ := ec.Input["name"].(string)
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, fmt.Errorf("bucket name is required")
-	}
-	alias := qualifiedAlias(ec.Username, name)
-	bucketID, err := findBucketIDByAlias(ctx, g, alias)
+	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, name)
 	if err != nil {
 		return nil, err
 	}
-	if bucketID == "" {
-		return nil, fmt.Errorf("bucket %q not found", name)
+	if bucket == nil {
+		return nil, fmt.Errorf("bucket %q not found", strings.TrimSpace(name))
 	}
-	b, err := g.getBucket(ctx, bucketID)
+	b, err := g.getBucket(ctx, bucket.ID)
 	if err != nil {
 		return nil, fmt.Errorf("get bucket: %w", err)
 	}
-	ns := userNS(ec.Username)
+	actualName := ownedGlobalAlias(ec.Username, b.GlobalAliases)
+	if actualName == "" {
+		actualName = bucket.Name
+	}
 	type keyPerm struct {
-		KeyID string `json:"key_id"`
-		Label string `json:"label"`
-		Read  bool   `json:"read"`
-		Write bool   `json:"write"`
-		Owner bool   `json:"owner"`
+		KeyID       string `json:"key_id"`
+		Name        string `json:"name"`
+		Label       string `json:"label"`
+		DisplayName string `json:"display_name"`
+		Read        bool   `json:"read"`
+		Write       bool   `json:"write"`
+		Owner       bool   `json:"owner"`
 	}
 	var keys []keyPerm
 	for _, k := range b.Keys {
-		if strings.HasPrefix(k.Name, ns) {
+		if isOwned(ec.Username, k.Name) {
+			displayName := friendlyName(ec.Username, k.Name)
 			keys = append(keys, keyPerm{
-				KeyID: k.AccessKeyID,
-				Label: strings.TrimPrefix(k.Name, ns),
-				Read:  k.Permissions.Read,
-				Write: k.Permissions.Write,
-				Owner: k.Permissions.Owner,
+				KeyID:       k.AccessKeyID,
+				Name:        k.Name,
+				Label:       displayName,
+				DisplayName: displayName,
+				Read:        k.Permissions.Read,
+				Write:       k.Permissions.Write,
+				Owner:       k.Permissions.Owner,
 			})
 		}
 	}
@@ -437,7 +485,8 @@ func opGetBucketInfo(ctx context.Context, g *garageClient, ec sdk.ExecuteContext
 	}
 	return map[string]any{
 		"id":             b.ID,
-		"name":           name,
+		"name":           actualName,
+		"display_name":   bucket.DisplayName,
 		"objects":        b.Objects,
 		"bytes":          b.Bytes,
 		"website_access": b.WebsiteAccess,
@@ -450,15 +499,17 @@ func opListKeys(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (an
 	if err != nil {
 		return nil, fmt.Errorf("list keys: %w", err)
 	}
-	ns := userNS(ec.Username)
 	type row struct {
-		ID    string `json:"id"`
-		Label string `json:"label"`
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		Label       string `json:"label"`
+		DisplayName string `json:"display_name"`
 	}
 	var result []row
 	for _, k := range all {
-		if strings.HasPrefix(k.Name, ns) {
-			result = append(result, row{ID: k.ID, Label: strings.TrimPrefix(k.Name, ns)})
+		if isOwned(ec.Username, k.Name) {
+			displayName := friendlyName(ec.Username, k.Name)
+			result = append(result, row{ID: k.ID, Name: k.Name, Label: displayName, DisplayName: displayName})
 		}
 	}
 	if result == nil {
@@ -478,11 +529,17 @@ func opCreateKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (a
 	if err != nil {
 		return nil, fmt.Errorf("create key: %w", err)
 	}
+	actualName := k.Name
+	if actualName == "" {
+		actualName = keyName
+	}
 	return map[string]any{
-		"key_id":     k.AccessKeyID,
-		"secret_key": k.SecretAccessKey,
-		"label":      label,
-		"warning":    "The secret key is shown only once. Store it securely - it cannot be retrieved again.",
+		"key_id":       k.AccessKeyID,
+		"secret_key":   k.SecretAccessKey,
+		"name":         actualName,
+		"label":        label,
+		"display_name": label,
+		"warning":      "The secret key is shown only once. Store it securely - it cannot be retrieved again.",
 	}, nil
 }
 
@@ -503,7 +560,14 @@ func opDeleteKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (a
 	if err := g.deleteKey(ctx, keyID); err != nil {
 		return nil, fmt.Errorf("delete key: %w", err)
 	}
-	return map[string]any{"key_id": keyID, "label": label, "deleted": true, "message": fmt.Sprintf("Key %q deleted", label)}, nil
+	return map[string]any{
+		"key_id":       keyID,
+		"name":         k.Name,
+		"label":        label,
+		"display_name": label,
+		"deleted":      true,
+		"message":      fmt.Sprintf("Key %q deleted", k.Name),
+	}, nil
 }
 
 func opAllowKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
@@ -529,23 +593,23 @@ func opAllowKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (an
 	if !isOwned(ec.Username, k.Name) {
 		return nil, fmt.Errorf("access denied: this key does not belong to your account")
 	}
-	alias := qualifiedAlias(ec.Username, bucketName)
-	bucketID, err := findBucketIDByAlias(ctx, g, alias)
+	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, bucketName)
 	if err != nil {
 		return nil, err
 	}
-	if bucketID == "" {
+	if bucket == nil {
 		return nil, fmt.Errorf("bucket %q not found", bucketName)
 	}
-	if err := g.allowKey(ctx, bucketID, keyID, read, write); err != nil {
+	if err := g.allowKey(ctx, bucket.ID, keyID, read, write); err != nil {
 		return nil, fmt.Errorf("grant access: %w", err)
 	}
 	return map[string]any{
-		"key_id":      keyID,
-		"bucket_name": bucketName,
-		"read":        read,
-		"write":       write,
-		"message":     fmt.Sprintf("Access granted: key %q -> bucket %q (read=%v write=%v)", friendlyName(ec.Username, k.Name), bucketName, read, write),
+		"key_id":              keyID,
+		"bucket_name":         bucket.Name,
+		"bucket_display_name": bucket.DisplayName,
+		"read":                read,
+		"write":               write,
+		"message":             fmt.Sprintf("Access granted: key %q -> bucket %q (read=%v write=%v)", friendlyName(ec.Username, k.Name), bucket.Name, read, write),
 	}, nil
 }
 
@@ -572,40 +636,24 @@ func opDenyKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any
 	if !isOwned(ec.Username, k.Name) {
 		return nil, fmt.Errorf("access denied: this key does not belong to your account")
 	}
-	alias := qualifiedAlias(ec.Username, bucketName)
-	bucketID, err := findBucketIDByAlias(ctx, g, alias)
+	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, bucketName)
 	if err != nil {
 		return nil, err
 	}
-	if bucketID == "" {
+	if bucket == nil {
 		return nil, fmt.Errorf("bucket %q not found", bucketName)
 	}
-	if err := g.denyKey(ctx, bucketID, keyID, read, write); err != nil {
+	if err := g.denyKey(ctx, bucket.ID, keyID, read, write); err != nil {
 		return nil, fmt.Errorf("revoke access: %w", err)
 	}
 	return map[string]any{
-		"key_id":      keyID,
-		"bucket_name": bucketName,
-		"read":        read,
-		"write":       write,
-		"message":     fmt.Sprintf("Access revoked: key %q from bucket %q (read=%v write=%v)", friendlyName(ec.Username, k.Name), bucketName, read, write),
+		"key_id":              keyID,
+		"bucket_name":         bucket.Name,
+		"bucket_display_name": bucket.DisplayName,
+		"read":                read,
+		"write":               write,
+		"message":             fmt.Sprintf("Access revoked: key %q from bucket %q (read=%v write=%v)", friendlyName(ec.Username, k.Name), bucket.Name, read, write),
 	}, nil
-}
-
-// findBucketIDByAlias returns the Garage bucket ID whose global alias matches.
-func findBucketIDByAlias(ctx context.Context, g *garageClient, alias string) (string, error) {
-	all, err := g.listBuckets(ctx)
-	if err != nil {
-		return "", fmt.Errorf("list buckets: %w", err)
-	}
-	for _, b := range all {
-		for _, a := range b.GlobalAliases {
-			if a == alias {
-				return b.ID, nil
-			}
-		}
-	}
-	return "", nil
 }
 
 // ---------------------------------------------------------------------------

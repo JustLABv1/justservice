@@ -24,6 +24,25 @@ import {
   type TaskDefinition,
 } from "@/lib/api"
 
+type JsonSchema = {
+  properties?: Record<string, Record<string, unknown>>
+}
+
+function normalizeSchema(input: unknown): JsonSchema {
+  if (typeof input === "string") {
+    try {
+      const parsed = JSON.parse(input)
+      return parsed && typeof parsed === "object"
+        ? (parsed as JsonSchema)
+        : {}
+    } catch {
+      return {}
+    }
+  }
+
+  return input && typeof input === "object" ? (input as JsonSchema) : {}
+}
+
 // Minimal JSON schema field renderer
 function SchemaField({
   name,
@@ -81,9 +100,7 @@ export default function TaskPage() {
 
   function buildInput(): Record<string, unknown> {
     if (!task) return {}
-    const schema = task.input_schema as {
-      properties?: Record<string, Record<string, unknown>>
-    }
+    const schema = normalizeSchema(task.input_schema)
     const result: Record<string, unknown> = {}
     for (const [key, fieldSchema] of Object.entries(schema.properties ?? {})) {
       const raw = fieldValues[key] ?? ""
@@ -142,7 +159,7 @@ export default function TaskPage() {
 
   if (!task) return null
 
-  const properties = (task.input_schema as any)?.properties ?? {}
+  const properties = normalizeSchema(task.input_schema).properties ?? {}
   const hasFields = Object.keys(properties).length > 0
 
   return (

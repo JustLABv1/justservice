@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import { useAuth } from "@/components/auth-provider"
 import { executions as execApi, type Execution } from "@/lib/api"
 
 function StatusBadge({ status }: { status: string }) {
@@ -70,10 +71,12 @@ function duration(exec: Execution) {
 }
 
 export default function ExecutionsPage() {
+  const { isLoading: authLoading, isAuthenticated } = useAuth()
   const [items, setItems] = useState<Execution[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   async function load() {
+    if (authLoading || !isAuthenticated) return
     setIsLoading(true)
     try {
       setItems(await execApi.list())
@@ -83,8 +86,14 @@ export default function ExecutionsPage() {
   }
 
   useEffect(() => {
+    if (authLoading) return
+    if (!isAuthenticated) {
+      setItems([])
+      setIsLoading(false)
+      return
+    }
     load()
-  }, [])
+  }, [authLoading, isAuthenticated])
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">

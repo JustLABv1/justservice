@@ -2,11 +2,47 @@ package models
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type JSONB json.RawMessage
+
+func (j *JSONB) Scan(value any) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		*j = append((*j)[:0], v...)
+		return nil
+	case string:
+		*j = append((*j)[:0], v...)
+		return nil
+	default:
+		return fmt.Errorf("cannot scan %T into JSONB", value)
+	}
+}
+
+func (j JSONB) Value() (driver.Value, error) {
+	if j == nil {
+		return nil, nil
+	}
+	return []byte(j), nil
+}
+
+func (j JSONB) MarshalJSON() ([]byte, error) {
+	if j == nil {
+		return []byte("null"), nil
+	}
+	return j, nil
+}
 
 // User represents an application user.
 type User struct {
@@ -82,7 +118,7 @@ type Execution struct {
 	TaskSlug         string          `db:"task_slug,omitempty" json:"task_slug,omitempty"`
 	TaskName         string          `db:"task_name,omitempty" json:"task_name,omitempty"`
 	InputJSON        json.RawMessage `db:"input_json" json:"input"`
-	OutputJSON       json.RawMessage `db:"output_json" json:"output,omitempty"`
+	OutputJSON       JSONB           `db:"output_json" json:"output,omitempty"`
 	Status           string          `db:"status" json:"status"`
 	Error            sql.NullString  `db:"error" json:"error,omitempty"`
 	StartedAt        time.Time       `db:"started_at" json:"started_at"`

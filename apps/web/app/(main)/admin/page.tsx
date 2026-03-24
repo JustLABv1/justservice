@@ -128,10 +128,9 @@ export default function AdminPage() {
 
   // Load default tab
   useEffect(() => {
-    if (!isAdmin) return
+    if (authLoading || !isAdmin) return
     loadTab("executions")
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [authLoading, isAdmin])
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">

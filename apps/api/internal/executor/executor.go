@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -86,15 +87,18 @@ func (s *Service) executeSync(ctx context.Context, exec *models.Execution, td *m
 		errMsg := err.Error()
 		s.updateStatus(ctx, exec.ID, models.ExecutionStatusFailed, &errMsg, &now)
 		exec.Status = models.ExecutionStatusFailed
+		exec.Error = sql.NullString{String: errMsg, Valid: true}
+		exec.CompletedAt = &now
 		return
 	}
 	if !resp.Success {
 		s.updateStatus(ctx, exec.ID, models.ExecutionStatusFailed, &resp.Error, &now)
 		exec.Status = models.ExecutionStatusFailed
-		exec.Error.String = resp.Error
+		exec.Error = sql.NullString{String: resp.Error, Valid: true}
+		exec.CompletedAt = &now
 		return
 	}
-	output := json.RawMessage(resp.OutputJson)
+	output := models.JSONB(resp.OutputJson)
 	s.updateStatusWithOutput(ctx, exec.ID, models.ExecutionStatusCompleted, output, &now)
 	exec.Status = models.ExecutionStatusCompleted
 	exec.OutputJSON = output
@@ -127,7 +131,7 @@ func (s *Service) executeAsync(ctx context.Context, exec *models.Execution, td *
 		}
 		if progress.Status == "completed" {
 			now := time.Now()
-			output := json.RawMessage(progress.OutputJson)
+			output := models.JSONB(progress.OutputJson)
 			s.updateStatusWithOutput(ctx, exec.ID, models.ExecutionStatusCompleted, output, &now)
 			return
 		}
@@ -149,7 +153,7 @@ func (s *Service) updateStatus(ctx context.Context, id uuid.UUID, status string,
 	_, _ = s.db.ExecContext(ctx, `UPDATE executions SET status=$2, error=$3, completed_at=$4 WHERE id=$1`, id, status, errMsg, completedAt)
 }
 
-func (s *Service) updateStatusWithOutput(ctx context.Context, id uuid.UUID, status string, output json.RawMessage, completedAt *time.Time) {
+func (s *Service) updateStatusWithOutput(ctx context.Context, id uuid.UUID, status string, output models.JSONB, completedAt *time.Time) {
 	_, _ = s.db.ExecContext(ctx, `UPDATE executions SET status=$2, output_json=$3, completed_at=$4 WHERE id=$1`, id, status, output, completedAt)
 }
 
