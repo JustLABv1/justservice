@@ -32,7 +32,7 @@ type TaskDefinition struct {
 	Description         string
 	Category            string
 	IsSync              bool
-	InputSchema         any    // will be JSON-marshalled
+	InputSchema         any // will be JSON-marshalled
 	RequiredPermissions []string
 }
 
