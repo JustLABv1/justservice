@@ -1,7 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google"
 
-import "@workspace/ui/globals.css"
-import { Toaster } from "@workspace/ui/components/sonner"
+import "./globals.css"
+import { Toast } from "@heroui/react"
 import { AuthProvider } from "@/components/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 
@@ -30,7 +30,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             {children}
-            <Toaster richColors />
+            <Toast.Provider placement="bottom end" />
           </AuthProvider>
         </ThemeProvider>
       </body>

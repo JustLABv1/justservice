@@ -5,39 +5,18 @@ import { format } from "date-fns"
 import {
   Activity,
   CheckCircle,
-  Globe,
   Loader2,
   Package,
   Shield,
   Users,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@heroui/react"
 
-import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
-import { Skeleton } from "@workspace/ui/components/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@workspace/ui/components/table"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@workspace/ui/components/tabs"
+import { Card, Chip, Skeleton, Table, cn } from "@heroui/react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import { PageHeader } from "@/components/page-header"
+import { SecondaryPanel, SecondaryPanelToggle } from "@/components/secondary-panel"
 import {
   admin,
   type AdminStats,
@@ -46,6 +25,16 @@ import {
   type Role,
   type User,
 } from "@/lib/api"
+
+const SECTIONS = [
+  { key: "dashboard", label: "Dashboard", icon: Activity },
+  { key: "executions", label: "Executions", icon: CheckCircle },
+  { key: "users", label: "Users", icon: Users },
+  { key: "plugins", label: "Plugins", icon: Package },
+  { key: "roles", label: "Roles", icon: Shield },
+] as const
+
+type SectionKey = (typeof SECTIONS)[number]["key"]
 
 function StatCard({
   label,
@@ -58,19 +47,19 @@ function StatCard({
 }) {
   return (
     <Card>
-      <CardContent className="flex items-center gap-4 pt-6">
-        <div className="rounded-full bg-primary/10 p-3">
-          <Icon className="h-5 w-5 text-primary" />
+      <Card.Content className="flex items-center gap-3 p-4">
+        <div className="rounded-lg bg-accent/10 p-2">
+          <Icon className="size-4 text-accent" />
         </div>
         <div>
           {value === undefined ? (
-            <Skeleton className="h-7 w-12 mb-1" />
+            <Skeleton className="h-6 w-10 mb-0.5" />
           ) : (
-            <p className="text-2xl font-bold">{value.toLocaleString()}</p>
+            <p className="text-xl font-bold tabular-nums">{value.toLocaleString()}</p>
           )}
-          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="text-xs text-muted">{label}</p>
         </div>
-      </CardContent>
+      </Card.Content>
     </Card>
   )
 }
@@ -85,27 +74,28 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([])
   const [plugins, setPlugins] = useState<Plugin[]>([])
   const [roles, setRoles] = useState<Role[]>([])
-  const [activeTab, setActiveTab] = useState("executions")
-  const [isLoadingTab, setIsLoadingTab] = useState(false)
+  const [activeSection, setActiveSection] = useState<SectionKey>("dashboard")
+  const [isLoadingSection, setIsLoadingSection] = useState(false)
 
   useEffect(() => {
     if (authLoading) return
     if (!isAdmin) {
-      toast.error("You don't have permission to access the admin area.")
+      toast.danger("You don't have permission to access the admin area.")
       router.replace("/tasks")
       return
     }
     admin
       .stats()
       .then(setStats)
-      .catch(() => toast.error("Failed to load stats"))
+      .catch(() => toast.danger("Failed to load stats"))
   }, [authLoading, isAdmin, router])
 
-  async function loadTab(tab: string) {
-    setActiveTab(tab)
-    setIsLoadingTab(true)
+  async function loadSection(section: SectionKey) {
+    setActiveSection(section)
+    if (section === "dashboard") return
+    setIsLoadingSection(true)
     try {
-      switch (tab) {
+      switch (section) {
         case "executions":
           setExecutions(await admin.listExecutions())
           break
@@ -120,258 +110,227 @@ export default function AdminPage() {
           break
       }
     } catch {
-      toast.error(`Failed to load ${tab}`)
+      toast.danger(`Failed to load ${section}`)
     } finally {
-      setIsLoadingTab(false)
+      setIsLoadingSection(false)
     }
   }
 
-  // Load default tab
-  useEffect(() => {
-    if (authLoading || !isAdmin) return
-    loadTab("executions")
-  }, [authLoading, isAdmin])
-
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+    <div className="flex flex-1 overflow-hidden">
+      {/* Secondary Panel — Section Nav */}
+      <SecondaryPanel title="Administration">
+        <nav className="flex flex-col gap-0.5">
+          {SECTIONS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                activeSection === key
+                  ? "bg-accent/10 text-accent font-medium"
+                  : "text-muted hover:bg-surface-secondary"
+              )}
+              onClick={() => loadSection(key)}
+            >
+              <Icon className="size-4" />
+              {label}
+            </button>
+          ))}
+        </nav>
+      </SecondaryPanel>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Users" value={stats?.total_users} icon={Users} />
-        <StatCard label="Plugins" value={stats?.total_plugins} icon={Package} />
-        <StatCard
-          label="Task types"
-          value={stats?.total_tasks}
-          icon={Activity}
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <PageHeader
+          breadcrumbs={[
+            { label: "Admin" },
+            ...(activeSection !== "dashboard"
+              ? [{ label: SECTIONS.find((s) => s.key === activeSection)!.label }]
+              : []),
+          ]}
+          actions={<SecondaryPanelToggle />}
         />
-        <StatCard
-          label="Executions"
-          value={stats?.total_executions}
-          icon={CheckCircle}
-        />
-        <StatCard label="Running" value={stats?.running_now} icon={Loader2} />
-      </div>
 
-      {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={loadTab}
-        className="space-y-4"
-      >
-        <TabsList>
-          <TabsTrigger value="executions">Executions</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="plugins">Plugins</TabsTrigger>
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-        </TabsList>
+        <div className="flex-1 overflow-auto p-4">
+          {activeSection === "dashboard" && (
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <StatCard label="Users" value={stats?.total_users} icon={Users} />
+                <StatCard label="Plugins" value={stats?.total_plugins} icon={Package} />
+                <StatCard label="Task types" value={stats?.total_tasks} icon={Activity} />
+                <StatCard label="Executions" value={stats?.total_executions} icon={CheckCircle} />
+                <StatCard label="Running" value={stats?.running_now} icon={Loader2} />
+              </div>
+            </div>
+          )}
 
-        {/* Executions */}
-        <TabsContent value="executions">
-          <Card>
-            <CardContent className="p-0">
-              {isLoadingTab ? (
-                <div className="space-y-px p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10" />
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Task</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Started</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+          {activeSection === "executions" && (
+            <SectionTable isLoading={isLoadingSection}>
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Executions">
+                  <Table.Header>
+                    <Table.Column>Task</Table.Column>
+                    <Table.Column>User</Table.Column>
+                    <Table.Column>Status</Table.Column>
+                    <Table.Column>Started</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
                     {executions.map((exec) => (
-                      <TableRow key={exec.id}>
-                        <TableCell className="font-medium">
-                          {exec.task_slug}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {exec.user_id}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
+                      <Table.Row key={exec.id}>
+                        <Table.Cell className="font-medium">{exec.task_slug}</Table.Cell>
+                        <Table.Cell className="text-muted text-sm">{exec.user_id}</Table.Cell>
+                        <Table.Cell>
+                          <Chip
+                            size="sm"
+                            variant="soft"
+                            color={
                               exec.status === "completed"
-                                ? "default"
+                                ? "success"
                                 : exec.status === "failed"
-                                  ? "destructive"
-                                  : "secondary"
+                                  ? "danger"
+                                  : "default"
                             }
                           >
                             {exec.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
+                          </Chip>
+                        </Table.Cell>
+                        <Table.Cell className="text-muted text-sm">
                           {exec.started_at
-                            ? format(
-                                new Date(exec.started_at),
-                                "MMM d, HH:mm"
-                              )
+                            ? format(new Date(exec.started_at), "MMM d, HH:mm")
                             : "—"}
-                        </TableCell>
-                      </TableRow>
+                        </Table.Cell>
+                      </Table.Row>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </SectionTable>
+          )}
 
-        {/* Users */}
-        <TabsContent value="users">
-          <Card>
-            <CardContent className="p-0">
-              {isLoadingTab ? (
-                <div className="space-y-px p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10" />
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Username</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Active</TableHead>
-                      <TableHead>Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+          {activeSection === "users" && (
+            <SectionTable isLoading={isLoadingSection}>
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Users">
+                  <Table.Header>
+                    <Table.Column>Username</Table.Column>
+                    <Table.Column>Email</Table.Column>
+                    <Table.Column>Active</Table.Column>
+                    <Table.Column>Created</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
                     {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">
-                          {user.username}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {user.email}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={user.is_active ? "default" : "secondary"}
+                      <Table.Row key={user.id}>
+                        <Table.Cell className="font-medium">{user.username}</Table.Cell>
+                        <Table.Cell className="text-muted text-sm">{user.email}</Table.Cell>
+                        <Table.Cell>
+                          <Chip
+                            size="sm"
+                            variant="soft"
+                            color={user.is_active ? "success" : "default"}
                           >
                             {user.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
+                          </Chip>
+                        </Table.Cell>
+                        <Table.Cell className="text-muted text-sm">
                           {format(new Date(user.created_at), "MMM d, yyyy")}
-                        </TableCell>
-                      </TableRow>
+                        </Table.Cell>
+                      </Table.Row>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </SectionTable>
+          )}
 
-        {/* Plugins */}
-        <TabsContent value="plugins">
-          <Card>
-            <CardContent className="p-0">
-              {isLoadingTab ? (
-                <div className="space-y-px p-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10" />
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Address</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Last Seen</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+          {activeSection === "plugins" && (
+            <SectionTable isLoading={isLoadingSection}>
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Plugins">
+                  <Table.Header>
+                    <Table.Column>Name</Table.Column>
+                    <Table.Column>Address</Table.Column>
+                    <Table.Column>Status</Table.Column>
+                    <Table.Column>Last Seen</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
                     {plugins.map((plugin) => (
-                      <TableRow key={plugin.id}>
-                        <TableCell className="font-medium">
-                          {plugin.name}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {plugin.grpc_address}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              plugin.status === "healthy" ? "default" : "destructive"
-                            }
-                            className={
-                              plugin.status === "healthy"
-                                ? "bg-green-500/10 text-green-600 hover:bg-green-500/20"
-                                : ""
-                            }
+                      <Table.Row key={plugin.id}>
+                        <Table.Cell className="font-medium">{plugin.name}</Table.Cell>
+                        <Table.Cell className="text-muted text-sm">{plugin.grpc_address}</Table.Cell>
+                        <Table.Cell>
+                          <Chip
+                            size="sm"
+                            variant="soft"
+                            color={plugin.status === "healthy" ? "success" : "danger"}
                           >
                             {plugin.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
+                          </Chip>
+                        </Table.Cell>
+                        <Table.Cell className="text-muted text-sm">
                           {plugin.last_heartbeat
                             ? format(new Date(plugin.last_heartbeat), "MMM d, HH:mm")
                             : "—"}
-                        </TableCell>
-                      </TableRow>
+                        </Table.Cell>
+                      </Table.Row>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </SectionTable>
+          )}
 
-        {/* Roles */}
-        <TabsContent value="roles">
-          <Card>
-            <CardContent className="p-0">
-              {isLoadingTab ? (
-                <div className="space-y-px p-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10" />
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Permissions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+          {activeSection === "roles" && (
+            <SectionTable isLoading={isLoadingSection}>
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Roles">
+                  <Table.Header>
+                    <Table.Column>Role</Table.Column>
+                    <Table.Column>Description</Table.Column>
+                    <Table.Column>Type</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
                     {roles.map((role) => (
-                      <TableRow key={role.id}>
-                        <TableCell className="font-medium">
+                      <Table.Row key={role.id}>
+                        <Table.Cell className="font-medium">
                           <div className="flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-muted-foreground" />
+                            <Shield className="size-4 text-muted" />
                             {role.name}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {/* Roles are separate entities without embedded permissions */}
-                            {role.name}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                        </Table.Cell>
+                        <Table.Cell className="text-muted text-sm">{role.description}</Table.Cell>
+                        <Table.Cell>
+                          <Chip size="sm" variant="soft" color={role.is_system ? "accent" : "default"}>
+                            {role.is_system ? "System" : "Custom"}
+                          </Chip>
+                        </Table.Cell>
+                      </Table.Row>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </SectionTable>
+          )}
+        </div>
+      </div>
     </div>
   )
+}
+
+function SectionTable({
+  isLoading,
+  children,
+}: {
+  isLoading: boolean
+  children: React.ReactNode
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-px">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-10" />
+        ))}
+      </div>
+    )
+  }
+  return <Table>{children}</Table>
 }

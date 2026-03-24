@@ -2,25 +2,23 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { toast } from "sonner"
+import { useEffect, useState } from "react"
+import { toast } from "@heroui/react"
 
-import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
-import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
+import { Button, Card, Input, Label } from "@heroui/react"
+import { useAuth } from "@/components/auth-provider"
 import { auth as authApi } from "@/lib/api"
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace("/")
+    }
+  }, [authLoading, isAuthenticated, router])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -31,7 +29,7 @@ export default function RegisterPage() {
     const confirm = form.get("confirm") as string
 
     if (password !== confirm) {
-      toast.error("Passwords do not match")
+      toast.danger("Passwords do not match")
       return
     }
 
@@ -41,7 +39,7 @@ export default function RegisterPage() {
       toast.success("Account created! Please sign in.")
       router.push("/login")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Registration failed")
+      toast.danger(err instanceof Error ? err.message : "Registration failed")
     } finally {
       setIsLoading(false)
     }
@@ -49,11 +47,11 @@ export default function RegisterPage() {
 
   return (
     <Card className="w-full max-w-sm">
-      <CardHeader className="text-center">
-        <CardTitle>Create account</CardTitle>
-        <CardDescription>Fill in the details below to get started</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <Card.Header className="text-center">
+        <Card.Title>Create account</Card.Title>
+        <Card.Description>Fill in the details below to get started</Card.Description>
+      </Card.Header>
+      <Card.Content>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="username">Username</Label>
@@ -105,19 +103,19 @@ export default function RegisterPage() {
               disabled={isLoading}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full" isDisabled={isLoading}>
             {isLoading ? "Creating account…" : "Create account"}
           </Button>
         </form>
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
+      </Card.Content>
+      <Card.Footer className="justify-center">
+        <p className="text-sm text-muted">
           Already have an account?{" "}
-          <Link href="/login" className="text-foreground font-medium underline-offset-4 hover:underline">
+          <Link href="/login" className="font-medium underline-offset-4 hover:underline">
             Sign in
           </Link>
         </p>
-      </CardFooter>
+      </Card.Footer>
     </Card>
   )
 }

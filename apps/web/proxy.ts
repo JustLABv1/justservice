@@ -11,16 +11,17 @@ export function proxy(request: NextRequest) {
   // Redirect authenticated users away from auth pages
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     if (hasSession) {
-      return NextResponse.redirect(new URL("/tasks", request.url))
+      return NextResponse.redirect(new URL("/", request.url))
     }
     return NextResponse.next()
   }
 
-  // The root path: send to tasks if session cookie present, login otherwise
+  // The root path stays available as the authenticated landing page.
   if (pathname === "/") {
-    return NextResponse.redirect(
-      new URL(hasSession ? "/tasks" : "/login", request.url)
-    )
+    if (!hasSession) {
+      return NextResponse.redirect(new URL("/login", request.url))
+    }
+    return NextResponse.next()
   }
 
   // All other protected routes: require session cookie

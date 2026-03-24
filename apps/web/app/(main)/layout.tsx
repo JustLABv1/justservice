@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
-import { MainLayout } from "@/components/main-layout"
+import { WorkspaceLayout } from "@/components/workspace-layout"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -15,5 +15,5 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, isAuthenticated, router])
 
-  return <MainLayout>{children}</MainLayout>
+  return <WorkspaceLayout>{children}</WorkspaceLayout>
 }

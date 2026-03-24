@@ -3,28 +3,24 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@heroui/react"
 
-import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
-import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
-import { Separator } from "@workspace/ui/components/separator"
+import { Button, Card, Input, Label, Separator } from "@heroui/react"
 import { useAuth } from "@/components/auth-provider"
 import { auth as authApi } from "@/lib/api"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [providers, setProviders] = useState<Array<{ id: string; name: string }> | null>(null)
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      const next = new URLSearchParams(window.location.search).get("next")
+      router.replace(next && next.startsWith("/") ? next : "/")
+    }
+  }, [authLoading, isAuthenticated, router])
 
   useEffect(() => {
     authApi.listOIDCProviders().then(setProviders).catch(() => setProviders([]))
@@ -40,9 +36,9 @@ export default function LoginPage() {
     try {
       await login(username, password)
       const next = new URLSearchParams(window.location.search).get("next")
-      router.push(next && next.startsWith("/") ? next : "/tasks")
+      router.push(next && next.startsWith("/") ? next : "/")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Login failed")
+      toast.danger(err instanceof Error ? err.message : "Login failed")
     } finally {
       setIsLoading(false)
     }
@@ -50,11 +46,11 @@ export default function LoginPage() {
 
   return (
     <Card className="w-full max-w-sm">
-      <CardHeader className="text-center">
-        <CardTitle>Sign in</CardTitle>
-        <CardDescription>Enter your credentials to continue</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <Card.Header className="text-center">
+        <Card.Title>Sign in</Card.Title>
+        <Card.Description>Enter your credentials to continue</Card.Description>
+      </Card.Header>
+      <Card.Content>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="username">Username or Email</Label>
@@ -80,7 +76,7 @@ export default function LoginPage() {
               disabled={isLoading}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full" isDisabled={isLoading}>
             {isLoading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
@@ -89,34 +85,32 @@ export default function LoginPage() {
           <>
             <div className="flex items-center gap-3 my-4">
               <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">or</span>
+              <span className="text-xs text-muted">or</span>
               <Separator className="flex-1" />
             </div>
             <div className="flex flex-col gap-2">
               {providers.map((p) => (
                 <Button
                   key={p.id}
-                  variant="outline"
+                  variant="secondary"
                   className="w-full"
-                  asChild
+                  onPress={() => { window.location.href = `/api/auth/oidc/${p.id}/authorize` }}
                 >
-                  <a href={`/api/auth/oidc/${p.id}/authorize`}>
-                    Continue with {p.name}
-                  </a>
+                  Continue with {p.name}
                 </Button>
               ))}
             </div>
           </>
         )}
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-sm text-muted-foreground">
+      </Card.Content>
+      <Card.Footer className="justify-center">
+        <p className="text-sm text-muted">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-foreground font-medium underline-offset-4 hover:underline">
+          <Link href="/register" className="font-medium underline-offset-4 hover:underline">
             Register
           </Link>
         </p>
-      </CardFooter>
+      </Card.Footer>
     </Card>
   )
 }
