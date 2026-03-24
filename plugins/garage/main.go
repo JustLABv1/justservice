@@ -261,13 +261,21 @@ func apiError(code int, body []byte) error {
 // User namespace helpers
 // ---------------------------------------------------------------------------
 
-var reUnsafe = regexp.MustCompile(`[^a-z0-9-]`)
+var (
+	reUserUnsafe   = regexp.MustCompile(`[^a-z0-9-]`)
+	reUserIDUnsafe = regexp.MustCompile(`[^a-z0-9]`)
+)
 
-// userNS returns the resource-name prefix scoping all resources to a user.
+type userScope struct {
+	current string
+	legacy  string
+}
+
+// usernameNS returns the legacy resource-name prefix derived from the username.
 // Format: "jus-<sanitizedUsername>-"
 // Username is lower-cased, unsafe chars removed, truncated to 20 chars.
-func userNS(username string) string {
-	safe := reUnsafe.ReplaceAllString(strings.ToLower(username), "")
+func usernameNS(username string) string {
+	safe := reUserUnsafe.ReplaceAllString(strings.ToLower(username), "")
 	if safe == "" {
 		safe = "user"
 	}
@@ -277,16 +285,58 @@ func userNS(username string) string {
 	return "jus-" + safe + "-"
 }
 
-func qualifiedAlias(username, name string) string { return userNS(username) + name }
-func isOwned(username, qualName string) bool      { return strings.HasPrefix(qualName, userNS(username)) }
-func friendlyName(username, qualName string) string {
-	return strings.TrimPrefix(qualName, userNS(username))
+// userIDNS returns the preferred resource-name prefix derived from the stable
+// user ID. UUID hyphens are stripped to keep bucket aliases within length limits.
+func userIDNS(userID string) string {
+	safe := reUserIDUnsafe.ReplaceAllString(strings.ToLower(userID), "")
+	if safe == "" {
+		return ""
+	}
+	return "jus-" + safe + "-"
 }
 
-func ownedGlobalAlias(username string, aliases []string) string {
+func newUserScope(userID, username string) userScope {
+	current := userIDNS(userID)
+	if current == "" {
+		return userScope{current: usernameNS(username)}
+	}
+
+	legacy := usernameNS(username)
+	if legacy == current {
+		legacy = ""
+	}
+
+	return userScope{current: current, legacy: legacy}
+}
+
+func qualifiedAlias(scope userScope, name string) string { return scope.current + name }
+
+func isOwned(scope userScope, qualName string) bool {
+	return strings.HasPrefix(qualName, scope.current) ||
+		(scope.legacy != "" && strings.HasPrefix(qualName, scope.legacy))
+}
+
+func friendlyName(scope userScope, qualName string) string {
+	if strings.HasPrefix(qualName, scope.current) {
+		return strings.TrimPrefix(qualName, scope.current)
+	}
+	if scope.legacy != "" && strings.HasPrefix(qualName, scope.legacy) {
+		return strings.TrimPrefix(qualName, scope.legacy)
+	}
+	return qualName
+}
+
+func ownedGlobalAlias(scope userScope, aliases []string) string {
 	for _, alias := range aliases {
-		if isOwned(username, alias) {
+		if strings.HasPrefix(alias, scope.current) {
 			return alias
+		}
+	}
+	if scope.legacy != "" {
+		for _, alias := range aliases {
+			if strings.HasPrefix(alias, scope.legacy) {
+				return alias
+			}
 		}
 	}
 	return ""
@@ -298,7 +348,7 @@ type resolvedBucket struct {
 	DisplayName string
 }
 
-func resolveOwnedBucket(ctx context.Context, g *garageClient, username, input string) (*resolvedBucket, error) {
+func resolveOwnedBucket(ctx context.Context, g *garageClient, scope userScope, input string) (*resolvedBucket, error) {
 	target := strings.TrimSpace(input)
 	if target == "" {
 		return nil, fmt.Errorf("bucket name is required")
@@ -307,13 +357,13 @@ func resolveOwnedBucket(ctx context.Context, g *garageClient, username, input st
 	if err != nil {
 		return nil, fmt.Errorf("list buckets: %w", err)
 	}
-	qualified := qualifiedAlias(username, target)
+	qualified := qualifiedAlias(scope, target)
 	for _, bucket := range all {
-		alias := ownedGlobalAlias(username, bucket.GlobalAliases)
+		alias := ownedGlobalAlias(scope, bucket.GlobalAliases)
 		if alias == "" {
 			continue
 		}
-		displayName := friendlyName(username, alias)
+		displayName := friendlyName(scope, alias)
 		if alias == target || alias == qualified || displayName == target {
 			return &resolvedBucket{ID: bucket.ID, Name: alias, DisplayName: displayName}, nil
 		}
@@ -330,15 +380,15 @@ var (
 	reKeyLabel   = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9 _-]{0,49}$`)
 )
 
-func validateBucketName(username, name string) error {
+func validateBucketName(scope userScope, name string) error {
 	if name == "" {
 		return fmt.Errorf("bucket name is required")
 	}
 	if !reBucketName.MatchString(name) {
 		return fmt.Errorf("bucket name must start with a letter or digit and contain only lowercase letters, digits, and hyphens")
 	}
-	if len(qualifiedAlias(username, name)) > 63 {
-		max := 63 - len(userNS(username))
+	if len(qualifiedAlias(scope, name)) > 63 {
+		max := 63 - len(scope.current)
 		return fmt.Errorf("bucket name too long - maximum %d characters for your account", max)
 	}
 	return nil
@@ -373,6 +423,7 @@ func (t taskHandler) Execute(ctx context.Context, ec sdk.ExecuteContext) (any, e
 // ---------------------------------------------------------------------------
 
 func opListBuckets(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	all, err := g.listBuckets(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list buckets: %w", err)
@@ -384,11 +435,11 @@ func opListBuckets(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) 
 	}
 	var result []row
 	for _, b := range all {
-		alias := ownedGlobalAlias(ec.Username, b.GlobalAliases)
+		alias := ownedGlobalAlias(scope, b.GlobalAliases)
 		if alias == "" {
 			continue
 		}
-		result = append(result, row{ID: b.ID, Name: alias, DisplayName: friendlyName(ec.Username, alias)})
+		result = append(result, row{ID: b.ID, Name: alias, DisplayName: friendlyName(scope, alias)})
 	}
 	if result == nil {
 		result = []row{}
@@ -397,17 +448,18 @@ func opListBuckets(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) 
 }
 
 func opCreateBucket(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	name, _ := ec.Input["name"].(string)
 	name = strings.TrimSpace(name)
-	if err := validateBucketName(ec.Username, name); err != nil {
+	if err := validateBucketName(scope, name); err != nil {
 		return nil, err
 	}
-	alias := qualifiedAlias(ec.Username, name)
+	alias := qualifiedAlias(scope, name)
 	b, err := g.createBucket(ctx, alias)
 	if err != nil {
 		return nil, fmt.Errorf("create bucket: %w", err)
 	}
-	actualName := ownedGlobalAlias(ec.Username, b.GlobalAliases)
+	actualName := ownedGlobalAlias(scope, b.GlobalAliases)
 	if actualName == "" {
 		actualName = alias
 	}
@@ -415,13 +467,14 @@ func opCreateBucket(ctx context.Context, g *garageClient, ec sdk.ExecuteContext)
 		"id":           b.ID,
 		"name":         actualName,
 		"display_name": name,
-		"message":      fmt.Sprintf("Bucket %q created successfully", actualName),
+		"message":      fmt.Sprintf("Bucket %q created successfully", name),
 	}, nil
 }
 
 func opDeleteBucket(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	name, _ := ec.Input["name"].(string)
-	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, name)
+	bucket, err := resolveOwnedBucket(ctx, g, scope, name)
 	if err != nil {
 		return nil, err
 	}
@@ -435,13 +488,14 @@ func opDeleteBucket(ctx context.Context, g *garageClient, ec sdk.ExecuteContext)
 		"name":         bucket.Name,
 		"display_name": bucket.DisplayName,
 		"deleted":      true,
-		"message":      fmt.Sprintf("Bucket %q deleted", bucket.Name),
+		"message":      fmt.Sprintf("Bucket %q deleted", bucket.DisplayName),
 	}, nil
 }
 
 func opGetBucketInfo(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	name, _ := ec.Input["name"].(string)
-	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, name)
+	bucket, err := resolveOwnedBucket(ctx, g, scope, name)
 	if err != nil {
 		return nil, err
 	}
@@ -452,7 +506,7 @@ func opGetBucketInfo(ctx context.Context, g *garageClient, ec sdk.ExecuteContext
 	if err != nil {
 		return nil, fmt.Errorf("get bucket: %w", err)
 	}
-	actualName := ownedGlobalAlias(ec.Username, b.GlobalAliases)
+	actualName := ownedGlobalAlias(scope, b.GlobalAliases)
 	if actualName == "" {
 		actualName = bucket.Name
 	}
@@ -467,8 +521,8 @@ func opGetBucketInfo(ctx context.Context, g *garageClient, ec sdk.ExecuteContext
 	}
 	var keys []keyPerm
 	for _, k := range b.Keys {
-		if isOwned(ec.Username, k.Name) {
-			displayName := friendlyName(ec.Username, k.Name)
+		if isOwned(scope, k.Name) {
+			displayName := friendlyName(scope, k.Name)
 			keys = append(keys, keyPerm{
 				KeyID:       k.AccessKeyID,
 				Name:        k.Name,
@@ -495,6 +549,7 @@ func opGetBucketInfo(ctx context.Context, g *garageClient, ec sdk.ExecuteContext
 }
 
 func opListKeys(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	all, err := g.listKeys(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list keys: %w", err)
@@ -507,8 +562,8 @@ func opListKeys(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (an
 	}
 	var result []row
 	for _, k := range all {
-		if isOwned(ec.Username, k.Name) {
-			displayName := friendlyName(ec.Username, k.Name)
+		if isOwned(scope, k.Name) {
+			displayName := friendlyName(scope, k.Name)
 			result = append(result, row{ID: k.ID, Name: k.Name, Label: displayName, DisplayName: displayName})
 		}
 	}
@@ -519,12 +574,13 @@ func opListKeys(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (an
 }
 
 func opCreateKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	label, _ := ec.Input["label"].(string)
 	label = strings.TrimSpace(label)
 	if err := validateKeyLabel(label); err != nil {
 		return nil, err
 	}
-	keyName := qualifiedAlias(ec.Username, label)
+	keyName := qualifiedAlias(scope, label)
 	k, err := g.createKey(ctx, keyName)
 	if err != nil {
 		return nil, fmt.Errorf("create key: %w", err)
@@ -544,6 +600,7 @@ func opCreateKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (a
 }
 
 func opDeleteKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	keyID, _ := ec.Input["key_id"].(string)
 	keyID = strings.TrimSpace(keyID)
 	if keyID == "" {
@@ -553,10 +610,10 @@ func opDeleteKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (a
 	if err != nil {
 		return nil, fmt.Errorf("key not found or access denied")
 	}
-	if !isOwned(ec.Username, k.Name) {
+	if !isOwned(scope, k.Name) {
 		return nil, fmt.Errorf("access denied: this key does not belong to your account")
 	}
-	label := friendlyName(ec.Username, k.Name)
+	label := friendlyName(scope, k.Name)
 	if err := g.deleteKey(ctx, keyID); err != nil {
 		return nil, fmt.Errorf("delete key: %w", err)
 	}
@@ -566,11 +623,12 @@ func opDeleteKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (a
 		"label":        label,
 		"display_name": label,
 		"deleted":      true,
-		"message":      fmt.Sprintf("Key %q deleted", k.Name),
+		"message":      fmt.Sprintf("Key %q deleted", label),
 	}, nil
 }
 
 func opAllowKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	keyID, _ := ec.Input["key_id"].(string)
 	bucketName, _ := ec.Input["bucket_name"].(string)
 	keyID = strings.TrimSpace(keyID)
@@ -590,10 +648,10 @@ func opAllowKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (an
 	if err != nil {
 		return nil, fmt.Errorf("key not found or access denied")
 	}
-	if !isOwned(ec.Username, k.Name) {
+	if !isOwned(scope, k.Name) {
 		return nil, fmt.Errorf("access denied: this key does not belong to your account")
 	}
-	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, bucketName)
+	bucket, err := resolveOwnedBucket(ctx, g, scope, bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -609,11 +667,12 @@ func opAllowKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (an
 		"bucket_display_name": bucket.DisplayName,
 		"read":                read,
 		"write":               write,
-		"message":             fmt.Sprintf("Access granted: key %q -> bucket %q (read=%v write=%v)", friendlyName(ec.Username, k.Name), bucket.Name, read, write),
+		"message":             fmt.Sprintf("Access granted: key %q -> bucket %q (read=%v write=%v)", friendlyName(scope, k.Name), bucket.DisplayName, read, write),
 	}, nil
 }
 
 func opDenyKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
 	keyID, _ := ec.Input["key_id"].(string)
 	bucketName, _ := ec.Input["bucket_name"].(string)
 	keyID = strings.TrimSpace(keyID)
@@ -633,10 +692,10 @@ func opDenyKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any
 	if err != nil {
 		return nil, fmt.Errorf("key not found or access denied")
 	}
-	if !isOwned(ec.Username, k.Name) {
+	if !isOwned(scope, k.Name) {
 		return nil, fmt.Errorf("access denied: this key does not belong to your account")
 	}
-	bucket, err := resolveOwnedBucket(ctx, g, ec.Username, bucketName)
+	bucket, err := resolveOwnedBucket(ctx, g, scope, bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -652,7 +711,7 @@ func opDenyKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any
 		"bucket_display_name": bucket.DisplayName,
 		"read":                read,
 		"write":               write,
-		"message":             fmt.Sprintf("Access revoked: key %q from bucket %q (read=%v write=%v)", friendlyName(ec.Username, k.Name), bucket.Name, read, write),
+		"message":             fmt.Sprintf("Access revoked: key %q from bucket %q (read=%v write=%v)", friendlyName(scope, k.Name), bucket.DisplayName, read, write),
 	}, nil
 }
 
