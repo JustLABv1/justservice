@@ -63,7 +63,7 @@ function SchemaField({
 export default function TaskPage() {
   const params = useParams()
   const router = useRouter()
-  const slug = decodeURIComponent(params.slug as string)
+  const slug = params.slug as string
 
   const [task, setTask] = useState<TaskDefinition | null>(null)
   const [isLoading, setIsLoading] = useState(true)

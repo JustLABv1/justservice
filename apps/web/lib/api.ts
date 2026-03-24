@@ -88,10 +88,10 @@ export const tasks = {
   list: (q?: string) =>
     request<TaskDefinition[]>(`/api/tasks${q ? `?q=${encodeURIComponent(q)}` : ""}`),
 
-  get: (slug: string) => request<TaskDefinition>(`/api/tasks/${encodeURIComponent(slug)}`),
+  get: (slug: string) => request<TaskDefinition>(`/api/tasks/${slug}`),
 
   execute: (slug: string, input: Record<string, unknown>) =>
-    request<Execution>(`/api/tasks/${encodeURIComponent(slug)}/execute`, {
+    request<Execution>(`/api/tasks/${slug}/execute`, {
       method: "POST",
       body: JSON.stringify(input),
     }),

@@ -93,11 +93,23 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("refresh_token")
 	if err != nil {
+		log.Warn().Str("error", err.Error()).Msg("refresh: no cookie in request")
 		respond.Error(w, http.StatusUnauthorized, "no refresh token")
 		return
 	}
 	pair, err := h.svc.RefreshTokens(r.Context(), cookie.Value)
 	if err != nil {
+		log.Warn().Str("error", err.Error()).Msg("refresh: token validation failed")
+		// Clear the stale cookie so the browser doesn't keep sending it and
+		// the Next.js middleware stops treating the user as authenticated.
+		http.SetCookie(w, &http.Cookie{
+			Name:     "refresh_token",
+			Value:    "",
+			Path:     "/",
+			HttpOnly: true,
+			MaxAge:   -1,
+			Expires:  time.Unix(0, 0),
+		})
 		respond.Error(w, http.StatusUnauthorized, "invalid or expired refresh token")
 		return
 	}

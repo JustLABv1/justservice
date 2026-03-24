@@ -633,7 +633,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "List Buckets", Slug: "garage:list-buckets",
+			Name: "List Buckets", Slug: "garage-list-buckets",
 			Description: "List all S3 Garage buckets in your space.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
@@ -643,7 +643,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "Create Bucket", Slug: "garage:create-bucket",
+			Name: "Create Bucket", Slug: "garage-create-bucket",
 			Description: "Create a new S3 Garage bucket in your space.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{
@@ -661,7 +661,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "Delete Bucket", Slug: "garage:delete-bucket",
+			Name: "Delete Bucket", Slug: "garage-delete-bucket",
 			Description: "Delete one of your S3 Garage buckets. The bucket must be empty and have no keys attached.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{
@@ -679,7 +679,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "Get Bucket Info", Slug: "garage:get-bucket-info",
+			Name: "Get Bucket Info", Slug: "garage-get-bucket-info",
 			Description: "Get details of one of your buckets: size, object count, and linked access keys.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{
@@ -699,7 +699,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "List Access Keys", Slug: "garage:list-keys",
+			Name: "List Access Keys", Slug: "garage-list-keys",
 			Description: "List all S3 access keys in your space.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
@@ -709,7 +709,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "Create Access Key", Slug: "garage:create-key",
+			Name: "Create Access Key", Slug: "garage-create-key",
 			Description: "Create a new S3 access key. The secret key is returned only once - save it immediately.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{
@@ -727,7 +727,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "Delete Access Key", Slug: "garage:delete-key",
+			Name: "Delete Access Key", Slug: "garage-delete-key",
 			Description: "Permanently delete one of your S3 access keys.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{
@@ -747,7 +747,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "Grant Key Access", Slug: "garage:allow-key",
+			Name: "Grant Key Access", Slug: "garage-allow-key",
 			Description: "Grant one of your access keys read and/or write permissions on one of your buckets.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{
@@ -779,7 +779,7 @@ func main() {
 
 	p.Register(taskHandler{
 		def: sdk.TaskDefinition{
-			Name: "Revoke Key Access", Slug: "garage:deny-key",
+			Name: "Revoke Key Access", Slug: "garage-deny-key",
 			Description: "Revoke an access key's read and/or write permissions on one of your buckets.",
 			Category:    "garage", IsSync: true,
 			InputSchema: map[string]any{

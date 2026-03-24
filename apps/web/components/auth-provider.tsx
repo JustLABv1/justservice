@@ -52,7 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await loadUser()
       } catch {
         if (controller.signal.aborted) return
-        await authApi.logout().catch(() => {})
+        // Don't call logout — it would clear a potentially valid cookie.
+        // The user simply isn't authenticated yet; let the UI handle it.
       } finally {
         if (!controller.signal.aborted) setIsLoading(false)
       }

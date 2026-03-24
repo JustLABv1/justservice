@@ -114,7 +114,7 @@ export default function HomePage() {
                   <TaskCard
                     key={task.id}
                     task={task}
-                    onClick={() => router.push(`/tasks/${encodeURIComponent(task.slug)}`)}
+                    onClick={() => router.push(`/tasks/${task.slug}`)}
                   />
                 ))}
               </div>
