@@ -70,5 +70,20 @@ services:
       - api
     restart: unless-stopped
 
+  garage:
+    build:
+      context: plugins
+      dockerfile: ../deploy/docker/plugin.Dockerfile
+      args:
+        PLUGIN_DIR: garage
+    environment:
+      GRPC_ADDR: "0.0.0.0:9003"
+      BACKEND_GRPC_ADDR: "api:9090"
+      GARAGE_ADMIN_URL: "http://garage-s3:3903"   # update to your Garage admin endpoint
+      GARAGE_ADMIN_TOKEN: "change-me"             # set your Garage admin token
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   postgres_data:

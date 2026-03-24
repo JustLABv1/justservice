@@ -43,20 +43,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    const controller = new AbortController()
     const init = async () => {
       try {
-        const data = await authApi.refresh()
+        const data = await authApi.refresh(controller.signal)
+        if (controller.signal.aborted) return
         setAccessToken(data.access_token)
         await loadUser()
       } catch {
-        // Refresh failed — clear any stale session cookie so the proxy
-        // doesn't keep redirecting away from the login page.
+        if (controller.signal.aborted) return
         await authApi.logout().catch(() => {})
       } finally {
-        setIsLoading(false)
+        if (!controller.signal.aborted) setIsLoading(false)
       }
     }
     init()
+    return () => controller.abort()
   }, [loadUser])
 
   const login = useCallback(

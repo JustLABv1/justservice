@@ -99,12 +99,38 @@ func (s *Service) RefreshTokens(ctx context.Context, refreshToken string) (*Toke
 	if err != nil {
 		return nil, errors.New("invalid or expired refresh token")
 	}
-	_, _ = s.db.ExecContext(ctx, `UPDATE refresh_tokens SET revoked = true WHERE token = $1`, refreshToken)
+	// Do not rotate the refresh token. Concurrent refresh calls (e.g. React
+	// StrictMode double-invoke) would otherwise race: the first call revokes
+	// the token before the second call can use it, causing logout. The token
+	// is revoked on explicit logout and expires after RefreshTokenTTL.
 	var user models.User
 	if err := s.db.GetContext(ctx, &user, `SELECT * FROM users WHERE id = $1 AND is_active = true`, userID); err != nil {
 		return nil, errors.New("user not found")
 	}
-	return s.issueTokens(ctx, user)
+	roles, _ := s.rbac.GetUserRoles(ctx, user.ID)
+	perms, _ := s.rbac.GetUserPermissions(ctx, user.ID)
+	now := time.Now()
+	claims := &Claims{
+		UserID:      user.ID.String(),
+		Username:    user.Username,
+		Email:       user.Email,
+		Roles:       roles,
+		Permissions: perms,
+		RegisteredClaims: jwt.RegisteredClaims{
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.AccessTokenTTL)),
+		},
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	accessToken, err := tok.SignedString([]byte(s.cfg.Secret))
+	if err != nil {
+		return nil, fmt.Errorf("sign token: %w", err)
+	}
+	return &TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken, // same token reused until expiry or logout
+		ExpiresIn:    int64(s.cfg.AccessTokenTTL.Seconds()),
+	}, nil
 }
 
 func (s *Service) RevokeRefreshToken(ctx context.Context, refreshToken string) {

@@ -63,9 +63,10 @@ export const auth = {
       body: JSON.stringify({ username, email, password }),
     }),
 
-  refresh: () =>
+  refresh: (signal?: AbortSignal) =>
     request<{ access_token: string; expires_in: number }>("/api/auth/refresh", {
       method: "POST",
+      signal,
     }),
 
   logout: () =>
@@ -87,10 +88,10 @@ export const tasks = {
   list: (q?: string) =>
     request<TaskDefinition[]>(`/api/tasks${q ? `?q=${encodeURIComponent(q)}` : ""}`),
 
-  get: (slug: string) => request<TaskDefinition>(`/api/tasks/${slug}`),
+  get: (slug: string) => request<TaskDefinition>(`/api/tasks/${encodeURIComponent(slug)}`),
 
   execute: (slug: string, input: Record<string, unknown>) =>
-    request<Execution>(`/api/tasks/${slug}/execute`, {
+    request<Execution>(`/api/tasks/${encodeURIComponent(slug)}/execute`, {
       method: "POST",
       body: JSON.stringify(input),
     }),

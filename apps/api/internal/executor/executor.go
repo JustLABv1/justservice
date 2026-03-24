@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/rs/zerolog/log"
@@ -185,7 +186,7 @@ func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
+	slug := chi.URLParam(r, "slug")
 	var td models.TaskDefinition
 	err := h.db.GetContext(r.Context(), &td, `
 		SELECT td.*, p.name as plugin_name
@@ -201,7 +202,7 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ExecuteTask(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
+	slug := chi.URLParam(r, "slug")
 	claims, ok := auth.GetClaims(r.Context())
 	if !ok {
 		respond.Error(w, http.StatusUnauthorized, "authentication required")
@@ -221,7 +222,7 @@ func (h *Handler) ExecuteTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetExecution(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid execution id")
 		return
@@ -260,7 +261,7 @@ func (h *Handler) ListExecutions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) StreamExecution(w http.ResponseWriter, r *http.Request) {
-	id, err := uuid.Parse(r.PathValue("id"))
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid execution id")
 		return
