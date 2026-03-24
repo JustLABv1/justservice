@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   ChevronRight,
   Copy,
@@ -36,6 +36,7 @@ import { tasks as tasksApi, type TaskDefinition } from "@/lib/api"
 export default function TasksPage() {
   const { isLoading: authLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { openDetail } = useDetailPanel()
   const [query, setQuery] = useState("")
   const [allTasks, setAllTasks] = useState<TaskDefinition[]>([])
@@ -49,6 +50,10 @@ export default function TasksPage() {
     if (authLoading) return
     tasksApi.list().then(setAllTasks).finally(() => setIsLoading(false))
   }, [authLoading])
+
+  useEffect(() => {
+    setQuery(searchParams.get("q") ?? "")
+  }, [searchParams])
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -66,7 +71,8 @@ export default function TasksPage() {
       query.trim() === "" ||
       t.name.toLowerCase().includes(query.toLowerCase()) ||
       t.description.toLowerCase().includes(query.toLowerCase()) ||
-      t.category.toLowerCase().includes(query.toLowerCase())
+      t.plugin_name.toLowerCase().includes(query.toLowerCase()) ||
+      (t.category || "General").toLowerCase().includes(query.toLowerCase())
     const matchesCategory =
       !selectedCategory || (t.category || "General") === selectedCategory
     return matchesQuery && matchesCategory
