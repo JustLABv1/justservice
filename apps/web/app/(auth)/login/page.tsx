@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@workspace/ui/components/button"
@@ -26,10 +26,9 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [providers, setProviders] = useState<Array<{ id: string; name: string }> | null>(null)
 
-  // Load OIDC providers on mount
-  useState(() => {
+  useEffect(() => {
     authApi.listOIDCProviders().then(setProviders).catch(() => setProviders([]))
-  })
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -40,7 +39,8 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       await login(username, password)
-      router.push("/")
+      const next = new URLSearchParams(window.location.search).get("next")
+      router.push(next && next.startsWith("/") ? next : "/tasks")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed")
     } finally {
@@ -51,29 +51,31 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Sign in</CardTitle>
+        <CardTitle>Sign in</CardTitle>
         <CardDescription>Enter your credentials to continue</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="username">Username or Email</Label>
             <Input
               id="username"
               name="username"
               type="text"
               autoComplete="username"
+              placeholder="you@example.com"
               required
               disabled={isLoading}
             />
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               name="password"
               type="password"
               autoComplete="current-password"
+              placeholder="••••••••"
               required
               disabled={isLoading}
             />
@@ -85,8 +87,12 @@ export default function LoginPage() {
 
         {providers && providers.length > 0 && (
           <>
-            <Separator className="my-4" />
-            <div className="space-y-2">
+            <div className="flex items-center gap-3 my-4">
+              <Separator className="flex-1" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <Separator className="flex-1" />
+            </div>
+            <div className="flex flex-col gap-2">
               {providers.map((p) => (
                 <Button
                   key={p.id}
@@ -103,11 +109,13 @@ export default function LoginPage() {
           </>
         )}
       </CardContent>
-      <CardFooter className="justify-center text-sm text-muted-foreground">
-        Don&apos;t have an account?&nbsp;
-        <Link href="/register" className="text-foreground underline-offset-4 hover:underline">
-          Register
-        </Link>
+      <CardFooter className="justify-center">
+        <p className="text-sm text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <Link href="/register" className="text-foreground font-medium underline-offset-4 hover:underline">
+            Register
+          </Link>
+        </p>
       </CardFooter>
     </Card>
   )

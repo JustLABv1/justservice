@@ -36,6 +36,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@workspace/ui/components/tabs"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
 import {
   admin,
   type AdminStats,
@@ -74,6 +76,10 @@ function StatCard({
 }
 
 export default function AdminPage() {
+  const { roles: userRoles, isLoading: authLoading } = useAuth()
+  const router = useRouter()
+  const isAdmin = userRoles.includes("admin")
+
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [executions, setExecutions] = useState<Execution[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -83,11 +89,17 @@ export default function AdminPage() {
   const [isLoadingTab, setIsLoadingTab] = useState(false)
 
   useEffect(() => {
+    if (authLoading) return
+    if (!isAdmin) {
+      toast.error("You don't have permission to access the admin area.")
+      router.replace("/tasks")
+      return
+    }
     admin
       .stats()
       .then(setStats)
       .catch(() => toast.error("Failed to load stats"))
-  }, [])
+  }, [authLoading, isAdmin, router])
 
   async function loadTab(tab: string) {
     setActiveTab(tab)
@@ -116,6 +128,7 @@ export default function AdminPage() {
 
   // Load default tab
   useEffect(() => {
+    if (!isAdmin) return
     loadTab("executions")
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

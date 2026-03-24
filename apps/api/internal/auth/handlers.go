@@ -55,10 +55,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
 		Value:    pair.RefreshToken,
-		Path:     "/api/auth",
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
 	respond.JSON(w, http.StatusOK, pair)
@@ -105,10 +104,9 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
 		Value:    pair.RefreshToken,
-		Path:     "/api/auth",
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
 	respond.JSON(w, http.StatusOK, pair)
@@ -121,7 +119,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:    "refresh_token",
 		Value:   "",
-		Path:    "/api/auth",
+		Path:    "/",
 		Expires: time.Unix(0, 0),
 		MaxAge:  -1,
 	})
@@ -166,10 +164,9 @@ func (h *Handler) OIDCAuthorize(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "oidc_state",
 		Value:    state,
-		Path:     "/api/auth/oidc",
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   300,
 	})
 	http.Redirect(w, r, p.AuthCodeURL(state), http.StatusFound)
@@ -223,10 +220,9 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
 		Value:    pair.RefreshToken,
-		Path:     "/api/auth",
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
 	http.Redirect(w, r, "/?token="+pair.AccessToken, http.StatusFound)

@@ -50,52 +50,56 @@ export default function RegisterPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Create account</CardTitle>
+        <CardTitle>Create account</CardTitle>
         <CardDescription>Fill in the details below to get started</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="username">Username</Label>
             <Input
               id="username"
               name="username"
               type="text"
               autoComplete="username"
+              placeholder="johndoe"
               required
               disabled={isLoading}
             />
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               name="email"
               type="email"
               autoComplete="email"
+              placeholder="you@example.com"
               required
               disabled={isLoading}
             />
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               name="password"
               type="password"
               autoComplete="new-password"
+              placeholder="••••••••"
               required
               minLength={8}
               disabled={isLoading}
             />
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="confirm">Confirm password</Label>
             <Input
               id="confirm"
               name="confirm"
               type="password"
               autoComplete="new-password"
+              placeholder="••••••••"
               required
               minLength={8}
               disabled={isLoading}
@@ -106,11 +110,13 @@ export default function RegisterPage() {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="justify-center text-sm text-muted-foreground">
-        Already have an account?&nbsp;
-        <Link href="/login" className="text-foreground underline-offset-4 hover:underline">
-          Sign in
-        </Link>
+      <CardFooter className="justify-center">
+        <p className="text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/login" className="text-foreground font-medium underline-offset-4 hover:underline">
+            Sign in
+          </Link>
+        </p>
       </CardFooter>
     </Card>
   )

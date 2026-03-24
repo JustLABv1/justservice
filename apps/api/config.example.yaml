@@ -1,0 +1,47 @@
+# JustService API — example configuration
+# Copy to config.yaml (in the same directory as the binary) and adjust values.
+# All settings can also be overridden with environment variables using the
+# JUSTSERVICE_ prefix, e.g. JUSTSERVICE_SERVER_PORT=9000.
+# Environment variables take precedence over the config file.
+
+# ──────────────────────────────────────────────
+# HTTP server
+# ──────────────────────────────────────────────
+server:
+  host: "0.0.0.0"   # interface to bind; use 127.0.0.1 for localhost-only
+  port: 8080
+
+# ──────────────────────────────────────────────
+# PostgreSQL database
+# ──────────────────────────────────────────────
+database:
+  dsn: "postgres://justservice:changeme@localhost:5432/justservice?sslmode=disable"
+  max_open_conns: 25
+  max_idle_conns: 10
+  conn_max_lifetime: "5m"
+  # Path passed to golang-migrate. "file://migrations" works when running the
+  # binary from the apps/api directory.
+  migrations_path: "file://migrations"
+
+# ──────────────────────────────────────────────
+# JWT tokens
+# ──────────────────────────────────────────────
+jwt:
+  # REQUIRED — change before deploying to production (≥ 32 random characters)
+  secret: "CHANGE_ME_use_a_long_random_secret_here_32chars"
+  access_token_ttl: "15m"   # short-lived access tokens (Bearer)
+  refresh_token_ttl: "168h"  # httpOnly cookie lifetime (7 days)
+
+# ──────────────────────────────────────────────
+# gRPC server (plugin registration)
+# ──────────────────────────────────────────────
+grpc:
+  host: "0.0.0.0"
+  port: 9090
+
+# ──────────────────────────────────────────────
+# Logging
+# ──────────────────────────────────────────────
+log:
+  level: "info"     # debug | info | warn | error
+  format: "json"    # json (production) | console (human-readable dev output)

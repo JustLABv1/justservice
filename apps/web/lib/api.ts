@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+// Always use relative URLs so requests go through the Next.js proxy rewrite.
+// This ensures cookies (e.g. refresh_token) are scoped to the frontend origin.
+const API_BASE = ""
 
 let accessToken: string | null = null
 

@@ -45,7 +45,7 @@ type LogConfig struct {
 	Format string `mapstructure:"format"`
 }
 
-func Load() (*Config, error) {
+func Load(configPath string) (*Config, error) {
 	v := viper.New()
 
 	// Defaults
@@ -63,11 +63,18 @@ func Load() (*Config, error) {
 	v.SetDefault("log.format", "json")
 
 	// Config file
-	v.SetConfigName("config")
-	v.SetConfigType("yaml")
-	v.AddConfigPath(".")
-	v.AddConfigPath("./config")
-	_ = v.ReadInConfig() // Not required
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+		if err := v.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("read config file %q: %w", configPath, err)
+		}
+	} else {
+		v.SetConfigName("config")
+		v.SetConfigType("yaml")
+		v.AddConfigPath(".")
+		v.AddConfigPath("./config")
+		_ = v.ReadInConfig() // optional when no explicit path given
+	}
 
 	// Environment vars: JUSTSERVICE_SERVER_PORT etc.
 	v.SetEnvPrefix("JUSTSERVICE")

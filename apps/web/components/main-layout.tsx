@@ -7,7 +7,6 @@ import {
   Moon,
   Settings,
   Sun,
-  User,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -39,7 +38,7 @@ import {
 import { useAuth } from "@/components/auth-provider"
 
 const NAV_ITEMS = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
+  { href: "/tasks", label: "Tasks", icon: LayoutDashboard },
   { href: "/executions", label: "My Executions", icon: Activity },
 ]
 
@@ -66,7 +65,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b px-6 py-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold text-lg">
+        <Link href="/tasks" className="flex items-center gap-2 font-semibold text-lg">
           <Settings className="h-5 w-5 text-primary" />
           JustService
         </Link>
@@ -81,7 +80,11 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.href}
+                    isActive={
+                      item.href === "/tasks"
+                        ? pathname === "/tasks" || pathname.startsWith("/tasks/")
+                        : pathname === item.href
+                    }
                   >
                     <Link href={item.href}>
                       <item.icon className="h-4 w-4" />
@@ -130,12 +133,6 @@ export function AppSidebar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-52">
-              <DropdownMenuItem asChild>
-                <Link href="/profile">
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </Link>
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />

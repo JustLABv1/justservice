@@ -49,7 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAccessToken(data.access_token)
         await loadUser()
       } catch {
-        // No valid session
+        // Refresh failed — clear any stale session cookie so the proxy
+        // doesn't keep redirecting away from the login page.
+        await authApi.logout().catch(() => {})
       } finally {
         setIsLoading(false)
       }

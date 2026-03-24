@@ -76,8 +76,15 @@ func (s *Service) RegisterLocal(ctx context.Context, username, email, password s
 	if err != nil {
 		return nil, fmt.Errorf("create user: %w", err)
 	}
+	// First registered user gets admin; all subsequent users get the base role.
+	var count int
+	_ = s.db.GetContext(ctx, &count, `SELECT COUNT(*) FROM users`)
+	roleName := "user"
+	if count <= 1 {
+		roleName = "admin"
+	}
 	var roleID uuid.UUID
-	if err := s.db.GetContext(ctx, &roleID, `SELECT id FROM roles WHERE name = 'user'`); err == nil {
+	if err := s.db.GetContext(ctx, &roleID, `SELECT id FROM roles WHERE name = $1`, roleName); err == nil {
 		_ = s.rbac.AssignRole(ctx, user.ID, roleID)
 	}
 	return &user, nil
