@@ -46,6 +46,26 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s-postgresql" (include "justservice.fullname" .) }}
 {{- end }}
 
+{{/* Fully qualified image reference honoring global.imageRegistry when set */}}
+{{- define "justservice.image" -}}
+{{- $registry := .image.registry -}}
+{{- $tag := .image.tag | default .root.Chart.AppVersion -}}
+{{- if .root.Values.global.imageRegistry -}}
+{{- $registry = .root.Values.global.imageRegistry -}}
+{{- end -}}
+{{- printf "%s/%s:%s" $registry .image.repository $tag -}}
+{{- end }}
+
+{{/* Plugin resource name */}}
+{{- define "justservice.pluginFullname" -}}
+{{- printf "%s-plugin-%s" (include "justservice.fullname" .root) .name | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/* API gRPC endpoint for plugin registration/callbacks */}}
+{{- define "justservice.apiGrpcAddress" -}}
+{{- printf "%s-api:%v" (include "justservice.fullname" .) .Values.api.service.grpcPort -}}
+{{- end }}
+
 {{/* Database DSN — built from bundled postgres when postgresql.enabled = true */}}
 {{- define "justservice.databaseDsn" -}}
 {{- if .Values.postgresql.enabled }}

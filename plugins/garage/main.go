@@ -733,6 +733,10 @@ func main() {
 		Description: "Manage your personal S3 Garage space: buckets, access keys, and permissions",
 		Version:     "1.0.0",
 		GRPCAddr:    sdk.EnvOrDefault("GRPC_ADDR", "0.0.0.0:9003"),
+		AdvertiseAddr: sdk.EnvOrDefault(
+			"ADVERTISE_ADDR",
+			sdk.EnvOrDefault("GRPC_ADDR", "0.0.0.0:9003"),
+		),
 		BackendAddr: sdk.EnvOrDefault("BACKEND_GRPC_ADDR", "localhost:9090"),
 	}
 

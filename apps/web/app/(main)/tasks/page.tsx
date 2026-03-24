@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   ChevronRight,
@@ -34,6 +34,14 @@ import { TaskRunner } from "@/components/task-runner"
 import { tasks as tasksApi, type TaskDefinition } from "@/lib/api"
 
 export default function TasksPage() {
+  return (
+    <Suspense fallback={<TasksPageSkeleton />}>
+      <TasksPageContent />
+    </Suspense>
+  )
+}
+
+function TasksPageContent() {
   const { isLoading: authLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -254,6 +262,22 @@ export default function TasksPage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TasksPageSkeleton() {
+  return (
+    <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 rounded-lg" />
+            ))}
+          </div>
         </div>
       </div>
     </div>

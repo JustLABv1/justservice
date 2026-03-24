@@ -1,14 +1,20 @@
 ## Global image settings
 ## When using a private registry, set global.imageRegistry here.
+nameOverride: ""
+fullnameOverride: ""
+
 global:
   imageRegistry: ""
+
+imagePullSecrets: []
+#  - name: ghcr-auth
 
 # ---------- API ----------
 api:
   image:
     registry: ghcr.io
     repository: justlab/justservice/api
-    tag: latest
+    tag: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
   service:
@@ -32,7 +38,7 @@ web:
   image:
     registry: ghcr.io
     repository: justlab/justservice/web
-    tag: latest
+    tag: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
   service:
@@ -45,9 +51,73 @@ web:
     limits:
       cpu: 200m
       memory: 256Mi
-  # URL that the browser uses to reach the API.
-  # Must be a publicly accessible URL when running in k8s.
+  # Must match the NEXT_PUBLIC_API_URL used when building the web image.
+  # The same value is also exposed to the runtime auth proxy routes.
   apiUrl: "https://api.justservice.example.com"
+
+# ---------- Plugins ----------
+plugins:
+  hello-world:
+    enabled: true
+    image:
+      registry: ghcr.io
+      repository: justlab/justservice/plugin-hello-world
+      tag: ""
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    grpcPort: 9001
+    env: []
+    secretEnv: []
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  webhook:
+    enabled: true
+    image:
+      registry: ghcr.io
+      repository: justlab/justservice/plugin-webhook
+      tag: ""
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    grpcPort: 9002
+    env: []
+    secretEnv: []
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  garage:
+    enabled: false
+    image:
+      registry: ghcr.io
+      repository: justlab/justservice/plugin-garage
+      tag: ""
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    grpcPort: 9003
+    env:
+      - name: GARAGE_ADMIN_URL
+        value: http://garage-s3:3903
+    secretEnv: []
+    # Example:
+    # secretEnv:
+    #   - name: GARAGE_ADMIN_TOKEN
+    #     secretName: garage-plugin
+    #     secretKey: admin-token
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
 
 # ---------- Ingress ----------
 ingress:

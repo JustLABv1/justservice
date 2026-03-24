@@ -49,6 +49,10 @@ func main() {
 		Description: "Demo plugin with a simple greeting task",
 		Version:     "1.0.0",
 		GRPCAddr:    sdk.EnvOrDefault("GRPC_ADDR", "0.0.0.0:9001"),
+		AdvertiseAddr: sdk.EnvOrDefault(
+			"ADVERTISE_ADDR",
+			sdk.EnvOrDefault("GRPC_ADDR", "0.0.0.0:9001"),
+		),
 		BackendAddr: sdk.EnvOrDefault("BACKEND_GRPC_ADDR", "localhost:9090"),
 	}
 	p.Register(helloTask{})

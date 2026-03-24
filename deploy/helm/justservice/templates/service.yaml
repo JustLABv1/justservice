@@ -40,3 +40,26 @@ spec:
     app.kubernetes.io/name: {{ include "justservice.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: web
+{{- range $pluginName, $plugin := .Values.plugins }}
+{{- if $plugin.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "justservice.pluginFullname" (dict "root" $ "name" $pluginName) }}
+  labels:
+    {{- include "justservice.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: plugin-{{ $pluginName }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ $plugin.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app.kubernetes.io/name: {{ include "justservice.name" $ }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: plugin-{{ $pluginName }}
+{{- end }}
+{{- end }}

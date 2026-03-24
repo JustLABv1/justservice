@@ -1,0 +1,68 @@
+{{- range $pluginName, $plugin := .Values.plugins }}
+{{- if $plugin.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "justservice.pluginFullname" (dict "root" $ "name" $pluginName) }}
+  labels:
+    {{- include "justservice.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: plugin-{{ $pluginName }}
+spec:
+  replicas: {{ $plugin.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "justservice.name" $ }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: plugin-{{ $pluginName }}
+  template:
+    metadata:
+      labels:
+        {{- include "justservice.labels" $ | nindent 8 }}
+        app.kubernetes.io/name: {{ include "justservice.name" $ }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        app.kubernetes.io/component: plugin-{{ $pluginName }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $pluginName }}
+          image: "{{ include "justservice.image" (dict "root" $ "image" $plugin.image) }}"
+          imagePullPolicy: {{ $plugin.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: {{ $plugin.grpcPort }}
+              protocol: TCP
+          env:
+            - name: GRPC_ADDR
+              value: {{ printf "0.0.0.0:%v" $plugin.grpcPort | quote }}
+            - name: ADVERTISE_ADDR
+              value: {{ printf "%s:%v" (include "justservice.pluginFullname" (dict "root" $ "name" $pluginName)) $plugin.grpcPort | quote }}
+            - name: BACKEND_GRPC_ADDR
+              value: {{ include "justservice.apiGrpcAddress" $ | quote }}
+            {{- with $plugin.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- range $secretEnv := $plugin.secretEnv }}
+            - name: {{ $secretEnv.name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretEnv.secretName }}
+                  key: {{ $secretEnv.secretKey }}
+            {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $plugin.resources | nindent 12 }}
+---
+{{- end }}
+{{- end }}

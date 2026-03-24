@@ -102,6 +102,10 @@ func main() {
 		Description: "Plugin for dispatching outbound HTTP webhook requests",
 		Version:     "1.0.0",
 		GRPCAddr:    sdk.EnvOrDefault("GRPC_ADDR", "0.0.0.0:9002"),
+		AdvertiseAddr: sdk.EnvOrDefault(
+			"ADVERTISE_ADDR",
+			sdk.EnvOrDefault("GRPC_ADDR", "0.0.0.0:9002"),
+		),
 		BackendAddr: sdk.EnvOrDefault("BACKEND_GRPC_ADDR", "localhost:9090"),
 	}
 	p.Register(webhookTask{})

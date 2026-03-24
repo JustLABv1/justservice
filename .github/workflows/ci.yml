@@ -1,0 +1,182 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26.1"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.9"
+  NEXT_PUBLIC_API_URL: "http://localhost:8080"
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        run: pnpm lint
+
+      - name: Typecheck frontend
+        run: pnpm typecheck
+
+      - name: Build frontend
+        run: pnpm build
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            apps/api/go.sum
+            plugins/go.sum
+
+      - name: Test API module
+        working-directory: apps/api
+        run: go test ./...
+
+      - name: Vet API module
+        working-directory: apps/api
+        run: go vet ./...
+
+      - name: Test plugins module
+        working-directory: plugins
+        run: go test ./...
+
+      - name: Build API binary
+        working-directory: apps/api
+        run: go build -o bin/server ./cmd/server
+
+      - name: Build plugins
+        working-directory: plugins
+        run: go build ./...
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build hello-world plugin image
+        uses: docker/build-push-action@v6
+        with:
+          context: plugins
+          file: deploy/docker/plugin.Dockerfile
+          build-args: |
+            PLUGIN_DIR=hello-world
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build webhook plugin image
+        uses: docker/build-push-action@v6
+        with:
+          context: plugins
+          file: deploy/docker/plugin.Dockerfile
+          build-args: |
+            PLUGIN_DIR=webhook
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build garage plugin image
+        uses: docker/build-push-action@v6
+        with:
+          context: plugins
+          file: deploy/docker/plugin.Dockerfile
+          build-args: |
+            PLUGIN_DIR=garage
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.1.3
+
+      - name: Lint chart with bundled PostgreSQL
+        run: |
+          helm lint deploy/helm/justservice \
+            --set config.jwtSecret=ci-secret-change-me-32-characters-long
+
+      - name: Render chart with bundled PostgreSQL
+        run: |
+          helm template justservice deploy/helm/justservice \
+            --set config.jwtSecret=ci-secret-change-me-32-characters-long >/dev/null
+
+      - name: Render chart with external PostgreSQL
+        run: |
+          helm template justservice deploy/helm/justservice \
+            --set config.jwtSecret=ci-secret-change-me-32-characters-long \
+            --set postgresql.enabled=false \
+            --set database.dsn=postgres://justservice:justservice@db:5432/justservice?sslmode=disable >/dev/null
+
+      - name: Render chart with garage plugin enabled
+        run: |
+          helm template justservice deploy/helm/justservice \
+            --set config.jwtSecret=ci-secret-change-me-32-characters-long \
+            --set plugins.garage.enabled=true \
+            --set plugins.garage.secretEnv[0].name=GARAGE_ADMIN_TOKEN \
+            --set plugins.garage.secretEnv[0].secretName=garage-plugin \
+            --set plugins.garage.secretEnv[0].secretKey=admin-token >/dev/null

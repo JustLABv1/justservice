@@ -76,6 +76,9 @@ type Plugin struct {
 	Version     string
 	// GRPCAddr is the address this plugin's gRPC server listens on (e.g. "0.0.0.0:9001").
 	GRPCAddr string
+	// AdvertiseAddr is the address registered with the backend for callbacks.
+	// When empty, GRPCAddr is used.
+	AdvertiseAddr string
 	// BackendAddr is the backend's plugin-registration gRPC address (e.g. "localhost:9090").
 	BackendAddr string
 	handlers    []Handler
@@ -144,7 +147,7 @@ func (p *Plugin) registerWithBackend(ctx context.Context) (string, error) {
 	resp, err := client.Register(ctx, &pluginv1.RegisterRequest{
 		Name:        p.Name,
 		Description: p.Description,
-		GrpcAddress: p.GRPCAddr,
+		GrpcAddress: p.advertiseAddr(),
 		Version:     p.Version,
 	})
 	if err != nil {
@@ -188,6 +191,13 @@ func EnvOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func (p *Plugin) advertiseAddr() string {
+	if p.AdvertiseAddr != "" {
+		return p.AdvertiseAddr
+	}
+	return p.GRPCAddr
 }
 
 // ----- gRPC server implementation -----

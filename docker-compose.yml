@@ -52,6 +52,7 @@ services:
         PLUGIN_DIR: hello-world
     environment:
       GRPC_ADDR: "0.0.0.0:9001"
+      ADVERTISE_ADDR: "hello-world:9001"
       BACKEND_GRPC_ADDR: "api:9090"
     depends_on:
       - api
@@ -65,6 +66,7 @@ services:
         PLUGIN_DIR: webhook
     environment:
       GRPC_ADDR: "0.0.0.0:9002"
+      ADVERTISE_ADDR: "webhook:9002"
       BACKEND_GRPC_ADDR: "api:9090"
     depends_on:
       - api
@@ -78,6 +80,7 @@ services:
         PLUGIN_DIR: garage
     environment:
       GRPC_ADDR: "0.0.0.0:9003"
+      ADVERTISE_ADDR: "garage:9003"
       BACKEND_GRPC_ADDR: "api:9090"
       GARAGE_ADMIN_URL: "http://garage-s3:3903"   # update to your Garage admin endpoint
       GARAGE_ADMIN_TOKEN: "change-me"             # set your Garage admin token

@@ -9,9 +9,6 @@ WORKDIR /app
 # Copy manifests only — maximises cache hits
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
-COPY packages/ui/package.json ./packages/ui/
-COPY packages/eslint-config/package.json ./packages/eslint-config/
-COPY packages/typescript-config/package.json ./packages/typescript-config/
 RUN pnpm install --frozen-lockfile
 
 # ---- Build ----
@@ -20,7 +17,8 @@ WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-COPY . .
+COPY tsconfig.base.json ./tsconfig.base.json
+COPY apps/web ./apps/web
 
 # NEXT_PUBLIC_* vars are baked in at build time
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080

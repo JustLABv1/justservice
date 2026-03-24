@@ -1,0 +1,210 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.9"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive release metadata
+        id: meta
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure web release URL is configured
+        shell: bash
+        run: |
+          if [[ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]]; then
+            echo "Repository variable NEXT_PUBLIC_API_URL must be set for release builds." >&2
+            exit 1
+          fi
+
+      - name: Login to GHCR for Docker
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker metadata for API
+        id: api_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.meta.outputs.owner }}/justservice/api
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.api_meta.outputs.tags }}
+          labels: ${{ steps.api_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker metadata for web
+        id: web_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.meta.outputs.owner }}/justservice/web
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+          push: true
+          tags: ${{ steps.web_meta.outputs.tags }}
+          labels: ${{ steps.web_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker metadata for hello-world plugin
+        id: plugin_hello_world_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.meta.outputs.owner }}/justservice/plugin-hello-world
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push hello-world plugin image
+        uses: docker/build-push-action@v6
+        with:
+          context: plugins
+          file: deploy/docker/plugin.Dockerfile
+          build-args: |
+            PLUGIN_DIR=hello-world
+          push: true
+          tags: ${{ steps.plugin_hello_world_meta.outputs.tags }}
+          labels: ${{ steps.plugin_hello_world_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker metadata for webhook plugin
+        id: plugin_webhook_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.meta.outputs.owner }}/justservice/plugin-webhook
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push webhook plugin image
+        uses: docker/build-push-action@v6
+        with:
+          context: plugins
+          file: deploy/docker/plugin.Dockerfile
+          build-args: |
+            PLUGIN_DIR=webhook
+          push: true
+          tags: ${{ steps.plugin_webhook_meta.outputs.tags }}
+          labels: ${{ steps.plugin_webhook_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker metadata for garage plugin
+        id: plugin_garage_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.meta.outputs.owner }}/justservice/plugin-garage
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push garage plugin image
+        uses: docker/build-push-action@v6
+        with:
+          context: plugins
+          file: deploy/docker/plugin.Dockerfile
+          build-args: |
+            PLUGIN_DIR=garage
+          push: true
+          tags: ${{ steps.plugin_garage_meta.outputs.tags }}
+          labels: ${{ steps.plugin_garage_meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.1.3
+
+      - name: Lint chart before release
+        run: |
+          helm lint deploy/helm/justservice \
+            --set config.jwtSecret=release-secret-change-me-32-characters \
+            --set web.image.tag=${{ steps.meta.outputs.version }} \
+            --set api.image.tag=${{ steps.meta.outputs.version }} \
+            --set plugins.hello-world.image.tag=${{ steps.meta.outputs.version }} \
+            --set plugins.webhook.image.tag=${{ steps.meta.outputs.version }} \
+            --set plugins.garage.image.tag=${{ steps.meta.outputs.version }}
+
+      - name: Login to GHCR for Helm
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Package chart
+        run: |
+          helm package deploy/helm/justservice \
+            --version "${{ steps.meta.outputs.version }}" \
+            --app-version "${{ steps.meta.outputs.version }}"
+
+      - name: Push chart to GHCR OCI registry
+        run: |
+          helm push justservice-${{ steps.meta.outputs.version }}.tgz \
+            oci://ghcr.io/${{ steps.meta.outputs.owner }}/charts
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: justservice-${{ steps.meta.outputs.version }}.tgz

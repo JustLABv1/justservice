@@ -248,6 +248,7 @@ func (t myTask) ExecuteAsync(ctx context.Context, ec sdk.ExecuteContext, progres
 | Variable | Default | Description |
 |---|---|---|
 | `GRPC_ADDR` | `0.0.0.0:9001` | Address the plugin's gRPC server listens on |
+| `ADVERTISE_ADDR` | `GRPC_ADDR` | Address registered at the backend so it can call the plugin |
 | `BACKEND_GRPC_ADDR` | `localhost:9090` | Address of the API's gRPC plugin endpoint |
 
 Run the included example plugins:
@@ -278,13 +279,33 @@ Services: `postgres`, `api` (`:8080` / `:9090`), `web` (`:3000`), `hello-world` 
 ```bash
 helm install justservice ./deploy/helm/justservice \
   --set config.jwtSecret="<your-secret>" \
-  --set database.dsn="postgres://..." \
   --set web.apiUrl="https://api.yourdomain.com" \
   --set ingress.enabled=true \
-  --set ingress.host="yourdomain.com"
+    --set ingress.hosts[0].host="yourdomain.com"
 ```
 
+When `postgresql.enabled=false`, also set `database.dsn`.
+
+Plugins are deployed as separate workloads. By default, `hello-world` and `webhook` are enabled, while `garage` is disabled until its admin credentials are wired.
+
+Example enabling the Garage plugin:
+
+```bash
+helm upgrade --install justservice ./deploy/helm/justservice \
+    --set config.jwtSecret="<your-secret>" \
+    --set plugins.garage.enabled=true \
+    --set plugins.garage.env[0].name=GARAGE_ADMIN_URL \
+    --set plugins.garage.env[0].value="https://garage-admin.example.com" \
+    --set plugins.garage.secretEnv[0].name=GARAGE_ADMIN_TOKEN \
+    --set plugins.garage.secretEnv[0].secretName=garage-plugin \
+    --set plugins.garage.secretEnv[0].secretKey=admin-token
+```
+
+The release workflow publishes Docker images for `api`, `web`, `plugin-hello-world`, `plugin-webhook`, and `plugin-garage` to GHCR. It expects the repository variable `NEXT_PUBLIC_API_URL` to be set so the web image is built with the correct backend URL.
+
 All configurable values are documented in [`deploy/helm/justservice/values.yaml`](deploy/helm/justservice/values.yaml).
+
+When an image tag is left empty in the chart values, Helm uses the chart `appVersion`. That keeps released chart packages aligned with the matching API, web, and plugin image tags by default.
 
 ---
 
