@@ -44,6 +44,51 @@ func (j JSONB) MarshalJSON() ([]byte, error) {
 	return j, nil
 }
 
+type JSONStringSlice []string
+
+func (j *JSONStringSlice) Scan(value any) error {
+	if value == nil {
+		*j = nil
+		return nil
+	}
+
+	var raw []byte
+	switch v := value.(type) {
+	case []byte:
+		raw = v
+	case string:
+		raw = []byte(v)
+	default:
+		return fmt.Errorf("cannot scan %T into JSONStringSlice", value)
+	}
+
+	if len(raw) == 0 {
+		*j = JSONStringSlice{}
+		return nil
+	}
+
+	var values []string
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return fmt.Errorf("unmarshal JSONStringSlice: %w", err)
+	}
+
+	*j = JSONStringSlice(values)
+	return nil
+}
+
+func (j JSONStringSlice) Value() (driver.Value, error) {
+	if j == nil {
+		return []byte("[]"), nil
+	}
+
+	encoded, err := json.Marshal([]string(j))
+	if err != nil {
+		return nil, err
+	}
+
+	return encoded, nil
+}
+
 // User represents an application user.
 type User struct {
 	ID           uuid.UUID      `db:"id" json:"id"`
@@ -127,14 +172,14 @@ type Execution struct {
 
 // OIDCProvider stores OIDC provider configuration.
 type OIDCProvider struct {
-	ID                    uuid.UUID `db:"id" json:"id"`
-	Name                  string    `db:"name" json:"name"`
-	IssuerURL             string    `db:"issuer_url" json:"issuer_url"`
-	ClientID              string    `db:"client_id" json:"client_id"`
-	ClientSecretEncrypted string    `db:"client_secret_encrypted" json:"-"`
-	Scopes                []string  `db:"scopes" json:"scopes"`
-	Enabled               bool      `db:"enabled" json:"enabled"`
-	CreatedAt             time.Time `db:"created_at" json:"created_at"`
+	ID                    uuid.UUID       `db:"id" json:"id"`
+	Name                  string          `db:"name" json:"name"`
+	IssuerURL             string          `db:"issuer_url" json:"issuer_url"`
+	ClientID              string          `db:"client_id" json:"client_id"`
+	ClientSecretEncrypted string          `db:"client_secret_encrypted" json:"-"`
+	Scopes                JSONStringSlice `db:"scopes" json:"scopes"`
+	Enabled               bool            `db:"enabled" json:"enabled"`
+	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
 }
 
 // AuditLog records all significant actions.

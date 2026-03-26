@@ -9,13 +9,16 @@ spec:
   replicas: {{ .Values.api.replicaCount }}
   selector:
     matchLabels:
-      {{- $ctx := dict "component" "api" }}
-      {{- include "justservice.selectorLabels" (merge . $ctx) | nindent 6 }}
+      app.kubernetes.io/name: {{ include "justservice.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: api
   template:
     metadata:
       labels:
         {{- include "justservice.labels" . | nindent 8 }}
-        {{- include "justservice.selectorLabels" (merge . $ctx) | nindent 8 }}
+        app.kubernetes.io/name: {{ include "justservice.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: api
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -53,6 +56,21 @@ spec:
                 configMapKeyRef:
                   name: {{ include "justservice.fullname" . }}-config
                   key: log-format
+            - name: JUSTSERVICE_OIDC_PUBLIC_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "justservice.fullname" . }}-config
+                  key: oidc-public-base-url
+            - name: JUSTSERVICE_OIDC_BOOTSTRAP_PROVIDERS_JSON
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.config.oidc.existingProvidersSecret.name }}
+                  name: {{ .Values.config.oidc.existingProvidersSecret.name }}
+                  key: {{ .Values.config.oidc.existingProvidersSecret.key | quote }}
+                  {{- else }}
+                  name: {{ include "justservice.fullname" . }}-secret
+                  key: oidc-bootstrap-providers.json
+                  {{- end }}
             {{- with .Values.api.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

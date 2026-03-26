@@ -58,7 +58,11 @@ func main() {
 	rbacSvc := rbac.New(database)
 	authSvc := auth.New(database, &cfg.JWT, rbacSvc)
 
-	baseURL := os.Getenv("JUSTSERVICE_BASE_URL")
+	if err := auth.ReconcileOIDCProviders(ctx, database, cfg.OIDC.BootstrapProviders); err != nil {
+		log.Fatal().Err(err).Msg("reconcile OIDC providers")
+	}
+
+	baseURL := cfg.OIDC.PublicBaseURL
 	if baseURL == "" {
 		baseURL = fmt.Sprintf("http://localhost:%d", cfg.Server.Port)
 	}

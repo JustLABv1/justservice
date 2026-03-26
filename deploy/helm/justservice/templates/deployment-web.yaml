@@ -9,13 +9,16 @@ spec:
   replicas: {{ .Values.web.replicaCount }}
   selector:
     matchLabels:
-      {{- $ctx := dict "component" "web" }}
-      {{- include "justservice.selectorLabels" (merge . $ctx) | nindent 6 }}
+      app.kubernetes.io/name: {{ include "justservice.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: web
   template:
     metadata:
       labels:
         {{- include "justservice.labels" . | nindent 8 }}
-        {{- include "justservice.selectorLabels" (merge . $ctx) | nindent 8 }}
+        app.kubernetes.io/name: {{ include "justservice.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: web
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

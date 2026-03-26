@@ -121,6 +121,7 @@ All options can be set via `apps/api/config.yaml` **or** as environment variable
 | `grpc.port` | `JUSTSERVICE_GRPC_PORT` | `9090` | gRPC plugin-registration port |
 | `log.level` | `JUSTSERVICE_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
 | `log.format` | `JUSTSERVICE_LOG_FORMAT` | `json` | `json` \| `console` |
+| `oidc.public_base_url` | `JUSTSERVICE_OIDC_PUBLIC_BASE_URL` | `""` | Public browser-facing base URL used for OIDC callback URLs |
 
 Frontend variable (baked in at build time):
 
@@ -143,7 +144,16 @@ Users are created by an admin in the admin panel (or via `/register`). Passwords
 
 ### OIDC federation
 
-OIDC providers (e.g. Google, Okta, Keycloak, Azure AD) are configured through the admin UI at `/admin`. Provider config is stored in the database and loaded at startup — no environment variables are needed.
+OIDC providers (e.g. Google, Okta, Keycloak, Azure AD) are stored in the database and loaded at startup. There are now two supported ways to manage them:
+
+- Configure providers through the admin API/UI.
+- Bootstrap providers declaratively at API startup with `oidc.bootstrap_providers` or `JUSTSERVICE_OIDC_BOOTSTRAP_PROVIDERS_JSON`.
+
+When the Next.js web app fronts the API, set `oidc.public_base_url` to the web origin so callback URLs resolve to paths like `https://justservice.example.com/api/auth/oidc/<provider-id>/callback`.
+
+Helm exposes this under `config.oidc.publicBaseUrl`. For bootstrap data, prefer `config.oidc.existingProvidersSecret` so the provider JSON, including `client_secret`, comes from an existing Kubernetes Secret rather than committed chart values. `config.oidc.providers` remains available for local or ephemeral environments, but it is not a good place to commit production secrets.
+
+When using `existingProvidersSecret`, create a Secret whose `oidc-bootstrap-providers.json` value is a JSON array of provider objects. The API reads that through `JUSTSERVICE_OIDC_BOOTSTRAP_PROVIDERS_JSON`, and provider entries are still upserted by name on startup.
 
 ---
 

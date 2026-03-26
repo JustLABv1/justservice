@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +17,11 @@ import (
 type contextKey int
 
 const claimsKey contextKey = 0
+
+const (
+	oidcStateCookieName = "oidc_state"
+	oidcNextCookieName  = "oidc_next"
+)
 
 func SetClaims(ctx context.Context, claims *Claims) context.Context {
 	return context.WithValue(ctx, claimsKey, claims)
@@ -162,20 +169,29 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) OIDCAuthorize(w http.ResponseWriter, r *http.Request) {
+	next := sanitizeRedirectPath(r.URL.Query().Get("next"))
 	providerID := r.PathValue("providerID")
 	p, ok := h.oidcProviders[providerID]
 	if !ok {
-		respond.Error(w, http.StatusNotFound, "OIDC provider not found")
+		redirectOIDCError(w, r, next, "OIDC provider not found")
 		return
 	}
 	state, err := GenerateState()
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "failed to generate state")
+		redirectOIDCError(w, r, next, "failed to start OIDC sign-in")
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     "oidc_state",
+		Name:     oidcStateCookieName,
 		Value:    state,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   300,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     oidcNextCookieName,
+		Value:    next,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -185,20 +201,24 @@ func (h *Handler) OIDCAuthorize(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
+	next := readOIDCNext(r)
 	providerID := r.PathValue("providerID")
 	p, ok := h.oidcProviders[providerID]
 	if !ok {
-		respond.Error(w, http.StatusNotFound, "OIDC provider not found")
+		clearOIDCCookies(w)
+		redirectOIDCError(w, r, next, "OIDC provider not found")
 		return
 	}
 	if err := ValidateState(r, r.URL.Query().Get("state")); err != nil {
-		respond.Error(w, http.StatusBadRequest, "invalid state")
+		clearOIDCCookies(w)
+		redirectOIDCError(w, r, next, "invalid OIDC state")
 		return
 	}
 	idToken, err := p.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
 		log.Error().Err(err).Msg("OIDC exchange")
-		respond.Error(w, http.StatusUnauthorized, "OIDC authentication failed")
+		clearOIDCCookies(w)
+		redirectOIDCError(w, r, next, "OIDC authentication failed")
 		return
 	}
 	var stdClaims struct {
@@ -208,7 +228,8 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 		Name              string `json:"name"`
 	}
 	if err := idToken.Claims(&stdClaims); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "failed to parse claims")
+		clearOIDCCookies(w)
+		redirectOIDCError(w, r, next, "failed to parse OIDC claims")
 		return
 	}
 	username := stdClaims.PreferredUsername
@@ -221,12 +242,14 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 	user, err := h.svc.UpsertOIDCUser(r.Context(), stdClaims.Subject, p.model.IssuerURL, stdClaims.Email, username)
 	if err != nil {
 		log.Error().Err(err).Msg("upsert OIDC user")
-		respond.Error(w, http.StatusInternalServerError, "failed to create user")
+		clearOIDCCookies(w)
+		redirectOIDCError(w, r, next, "failed to create user")
 		return
 	}
 	pair, err := h.svc.issueTokens(r.Context(), *user)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "failed to issue tokens")
+		clearOIDCCookies(w)
+		redirectOIDCError(w, r, next, "failed to issue tokens")
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -237,7 +260,8 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
-	http.Redirect(w, r, "/?token="+pair.AccessToken, http.StatusFound)
+	clearOIDCCookies(w)
+	http.Redirect(w, r, next, http.StatusFound)
 }
 
 func (h *Handler) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
@@ -250,4 +274,45 @@ func (h *Handler) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
 		result = append(result, publicProvider{ID: id, Name: p.model.Name})
 	}
 	respond.JSON(w, http.StatusOK, result)
+}
+
+func sanitizeRedirectPath(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+		return "/"
+	}
+	return raw
+}
+
+func readOIDCNext(r *http.Request) string {
+	cookie, err := r.Cookie(oidcNextCookieName)
+	if err != nil {
+		return "/"
+	}
+	return sanitizeRedirectPath(cookie.Value)
+}
+
+func clearOIDCCookies(w http.ResponseWriter) {
+	for _, name := range []string{oidcStateCookieName, oidcNextCookieName} {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   -1,
+			Expires:  time.Unix(0, 0),
+		})
+	}
+}
+
+func redirectOIDCError(w http.ResponseWriter, r *http.Request, next, message string) {
+	redirectURL := &url.URL{Path: "/login"}
+	query := redirectURL.Query()
+	query.Set("oidc_error", message)
+	if next != "/" {
+		query.Set("next", next)
+	}
+	redirectURL.RawQuery = query.Encode()
+	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	GRPC     GRPCConfig     `mapstructure:"grpc"`
 	Log      LogConfig      `mapstructure:"log"`
+	OIDC     OIDCConfig     `mapstructure:"oidc"`
 }
 
 type ServerConfig struct {
@@ -45,6 +47,20 @@ type LogConfig struct {
 	Format string `mapstructure:"format"`
 }
 
+type OIDCConfig struct {
+	PublicBaseURL      string                        `mapstructure:"public_base_url"`
+	BootstrapProviders []OIDCProviderBootstrapConfig `mapstructure:"bootstrap_providers"`
+}
+
+type OIDCProviderBootstrapConfig struct {
+	Name         string   `mapstructure:"name" json:"name"`
+	IssuerURL    string   `mapstructure:"issuer_url" json:"issuer_url"`
+	ClientID     string   `mapstructure:"client_id" json:"client_id"`
+	ClientSecret string   `mapstructure:"client_secret" json:"client_secret"`
+	Scopes       []string `mapstructure:"scopes" json:"scopes"`
+	Enabled      bool     `mapstructure:"enabled" json:"enabled"`
+}
+
 func Load(configPath string) (*Config, error) {
 	v := viper.New()
 
@@ -61,6 +77,8 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("grpc.port", 9090)
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "json")
+	v.SetDefault("oidc.public_base_url", "")
+	v.SetDefault("oidc.bootstrap_providers_json", "")
 
 	// Config file
 	if configPath != "" {
@@ -84,6 +102,14 @@ func Load(configPath string) (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("config unmarshal: %w", err)
+	}
+
+	if rawProviders := strings.TrimSpace(v.GetString("oidc.bootstrap_providers_json")); rawProviders != "" {
+		var providers []OIDCProviderBootstrapConfig
+		if err := json.Unmarshal([]byte(rawProviders), &providers); err != nil {
+			return nil, fmt.Errorf("parse oidc bootstrap providers json: %w", err)
+		}
+		cfg.OIDC.BootstrapProviders = providers
 	}
 
 	return &cfg, nil

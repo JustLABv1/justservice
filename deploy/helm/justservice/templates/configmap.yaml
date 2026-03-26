@@ -7,3 +7,4 @@ metadata:
 data:
   log-level: {{ .Values.config.logLevel | quote }}
   log-format: {{ .Values.config.logFormat | quote }}
+  oidc-public-base-url: {{ .Values.config.oidc.publicBaseUrl | quote }}

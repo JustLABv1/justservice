@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	go_oidc "github.com/coreos/go-oidc/v3/oidc"
 	"github.com/jmoiron/sqlx"
@@ -37,7 +38,7 @@ func NewOIDCProvider(ctx context.Context, m models.OIDCProvider, callbackURL str
 		ClientSecret: secret,
 		RedirectURL:  callbackURL,
 		Endpoint:     provider.Endpoint(),
-		Scopes:       append([]string{go_oidc.ScopeOpenID, "profile", "email"}, m.Scopes...),
+		Scopes:       append([]string{go_oidc.ScopeOpenID, "profile", "email"}, []string(m.Scopes)...),
 	}
 	verifier := provider.Verifier(&go_oidc.Config{ClientID: m.ClientID})
 	return &OIDCProvider{
@@ -75,6 +76,7 @@ func LoadOIDCProviders(ctx context.Context, db *sqlx.DB, callbackBaseURL string)
 		return nil, err
 	}
 	result := make(map[string]*OIDCProvider, len(providers))
+	callbackBaseURL = strings.TrimRight(callbackBaseURL, "/")
 	for _, m := range providers {
 		p, err := NewOIDCProvider(ctx, m, callbackBaseURL+"/api/auth/oidc/"+m.ID.String()+"/callback", db)
 		if err != nil {
@@ -94,7 +96,7 @@ func GenerateState() (string, error) {
 }
 
 func ValidateState(r *http.Request, state string) error {
-	cookie, err := r.Cookie("oidc_state")
+	cookie, err := r.Cookie(oidcStateCookieName)
 	if err != nil {
 		return errors.New("missing state cookie")
 	}

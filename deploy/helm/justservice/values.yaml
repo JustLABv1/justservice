@@ -147,6 +147,32 @@ config:
   jwtSecret: ""
   logLevel: info
   logFormat: json
+  oidc:
+    # Public browser-facing base URL used to build OIDC callback URLs.
+    # In Kubernetes this should usually match the web ingress origin.
+    publicBaseUrl: ""
+
+    # Preferred production setup: point the API at an existing Secret that contains
+    # the full OIDC bootstrap JSON payload under the key below.
+    existingProvidersSecret:
+      name: ""
+      key: oidc-bootstrap-providers.json
+
+    # Optional inline provider bootstrap for local/dev use. Avoid committing
+    # client secrets here; use existingProvidersSecret instead.
+    providers: []
+    # Example:
+    # providers:
+    #   - name: Keycloak
+    #     issuer_url: https://sso.example.com/realms/justservice
+    #     client_id: justservice
+    #     client_secret: change-me
+    #     scopes:
+    #       - offline_access
+    #     enabled: true
+    # Example external secret:
+    # kubectl create secret generic justservice-oidc \
+    #   --from-literal=oidc-bootstrap-providers.json='[{"name":"Keycloak","issuer_url":"https://sso.example.com/realms/justservice","client_id":"justservice","client_secret":"...","scopes":["offline_access"],"enabled":true}]'
 
 # ---------- Database ----------
 database:

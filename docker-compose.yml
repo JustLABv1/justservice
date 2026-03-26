@@ -23,6 +23,7 @@ services:
       JUSTSERVICE_JWT_SECRET: change-me-in-production-use-at-least-32-chars
       JUSTSERVICE_LOG_LEVEL: info
       JUSTSERVICE_LOG_FORMAT: pretty
+      JUSTSERVICE_OIDC_PUBLIC_BASE_URL: http://localhost:3000
     ports:
       - "8080:8080"   # HTTP
       - "9090:9090"   # gRPC plugin registration

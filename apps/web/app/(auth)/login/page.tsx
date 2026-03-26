@@ -26,6 +26,23 @@ export default function LoginPage() {
     authApi.listOIDCProviders().then(setProviders).catch(() => setProviders([]))
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const oidcError = params.get("oidc_error")
+    if (!oidcError) {
+      return
+    }
+
+    toast.danger(oidcError)
+
+    params.delete("oidc_error")
+    const next = params.get("next")
+    const target = next && next.startsWith("/") && !next.startsWith("//")
+      ? `/login?next=${encodeURIComponent(next)}`
+      : "/login"
+    router.replace(target)
+  }, [router])
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
@@ -94,7 +111,14 @@ export default function LoginPage() {
                   key={p.id}
                   variant="secondary"
                   className="w-full"
-                  onPress={() => { window.location.href = `/api/auth/oidc/${p.id}/authorize` }}
+                  onPress={() => {
+                    const params = new URLSearchParams(window.location.search)
+                    const next = params.get("next")
+                    const destination = next && next.startsWith("/") && !next.startsWith("//")
+                      ? `/api/auth/oidc/${p.id}/authorize?next=${encodeURIComponent(next)}`
+                      : `/api/auth/oidc/${p.id}/authorize`
+                    window.location.href = destination
+                  }}
                 >
                   Continue with {p.name}
                 </Button>
