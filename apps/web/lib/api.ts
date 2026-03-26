@@ -220,10 +220,16 @@ export interface AuditLog {
 
 export interface AdminStats {
   total_users: number
+  active_users: number
   total_plugins: number
+  healthy_plugins: number
+  unhealthy_plugins: number
   total_tasks: number
+  total_roles: number
   total_executions: number
   running_now: number
+  completed_last_24h: number
+  failed_last_24h: number
 }
 
 

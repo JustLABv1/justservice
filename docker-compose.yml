@@ -83,6 +83,7 @@ services:
       ADVERTISE_ADDR: "garage:9003"
       BACKEND_GRPC_ADDR: "api:9090"
       GARAGE_ADMIN_URL: "http://garage-s3:3903"   # update to your Garage admin endpoint
+      GARAGE_S3_ENDPOINT: "http://localhost:3900" # set the user-facing S3 endpoint shown in the usage guide task
       GARAGE_ADMIN_TOKEN: "change-me"             # set your Garage admin token
     depends_on:
       - api

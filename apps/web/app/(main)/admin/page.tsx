@@ -4,15 +4,19 @@ import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import {
   Activity,
-  CheckCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
   Loader2,
   Package,
+  RefreshCw,
   Shield,
+  UserPlus,
   Users,
 } from "lucide-react"
 import { toast } from "@heroui/react"
 
-import { Card, Chip, Skeleton, Table, cn } from "@heroui/react"
+import { Button, Card, Chip, Label, ProgressBar, Skeleton, Table, cn } from "@heroui/react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { PageHeader } from "@/components/page-header"
@@ -28,7 +32,7 @@ import {
 
 const SECTIONS = [
   { key: "dashboard", label: "Dashboard", icon: Activity },
-  { key: "executions", label: "Executions", icon: CheckCircle },
+  { key: "executions", label: "Executions", icon: CheckCircle2 },
   { key: "users", label: "Users", icon: Users },
   { key: "plugins", label: "Plugins", icon: Package },
   { key: "roles", label: "Roles", icon: Shield },
@@ -36,32 +40,75 @@ const SECTIONS = [
 
 type SectionKey = (typeof SECTIONS)[number]["key"]
 
+async function fetchAdminSnapshot() {
+  const [stats, executions, users, plugins, roles] = await Promise.all([
+    admin.stats(),
+    admin.listExecutions(),
+    admin.listUsers(),
+    admin.listPlugins(),
+    admin.listRoles(),
+  ])
+
+  return { stats, executions, users, plugins, roles }
+}
+
 function StatCard({
   label,
   value,
+  helper,
   icon: Icon,
 }: {
   label: string
-  value: number | undefined
+  value: number | string | undefined
+  helper: string
   icon: React.ComponentType<{ className?: string }>
 }) {
   return (
-    <Card>
-      <Card.Content className="flex items-center gap-3 p-4">
-        <div className="rounded-lg bg-accent/10 p-2">
-          <Icon className="size-4 text-accent" />
+    <Card className="overflow-hidden border border-default-200 bg-content1 shadow-sm">
+      <Card.Content className="flex min-h-36 flex-col justify-between gap-5 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="rounded-2xl bg-accent/10 p-3 text-accent">
+            <Icon className="size-5" />
+          </div>
+          <Chip size="sm" variant="soft" color="accent">
+            {label}
+          </Chip>
         </div>
-        <div>
+        <div className="space-y-1">
           {value === undefined ? (
-            <Skeleton className="h-6 w-10 mb-0.5" />
+            <Skeleton className="mb-1 h-8 w-24" />
           ) : (
-            <p className="text-xl font-bold tabular-nums">{value.toLocaleString()}</p>
+            <p className="text-3xl font-semibold tracking-tight tabular-nums">{typeof value === "number" ? value.toLocaleString() : value}</p>
           )}
-          <p className="text-xs text-muted">{label}</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">{helper}</p>
         </div>
       </Card.Content>
     </Card>
   )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-6">
+      <Skeleton className="h-56 rounded-[2rem]" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-36 rounded-[1.5rem]" />
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+        <Skeleton className="h-80 rounded-[1.5rem]" />
+        <div className="grid gap-4">
+          <Skeleton className="h-40 rounded-[1.5rem]" />
+          <Skeleton className="h-36 rounded-[1.5rem]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return <div className="px-4 py-8 text-sm text-muted">{message}</div>
 }
 
 export default function AdminPage() {
@@ -75,6 +122,7 @@ export default function AdminPage() {
   const [plugins, setPlugins] = useState<Plugin[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [activeSection, setActiveSection] = useState<SectionKey>("dashboard")
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true)
   const [isLoadingSection, setIsLoadingSection] = useState(false)
 
   useEffect(() => {
@@ -84,15 +132,53 @@ export default function AdminPage() {
       router.replace("/tasks")
       return
     }
-    admin
-      .stats()
-      .then(setStats)
-      .catch(() => toast.danger("Failed to load stats"))
+
+    setIsLoadingDashboard(true)
+    fetchAdminSnapshot()
+      .then((snapshot) => {
+        setStats(snapshot.stats)
+        setExecutions(snapshot.executions)
+        setUsers(snapshot.users)
+        setPlugins(snapshot.plugins)
+        setRoles(snapshot.roles)
+      })
+      .catch(() => toast.danger("Failed to load admin overview"))
+      .finally(() => setIsLoadingDashboard(false))
   }, [authLoading, isAdmin, router])
 
-  async function loadSection(section: SectionKey) {
+  async function refreshDashboard() {
+    setIsLoadingDashboard(true)
+    try {
+      const snapshot = await fetchAdminSnapshot()
+      setStats(snapshot.stats)
+      setExecutions(snapshot.executions)
+      setUsers(snapshot.users)
+      setPlugins(snapshot.plugins)
+      setRoles(snapshot.roles)
+    } catch {
+      toast.danger("Failed to refresh admin overview")
+    } finally {
+      setIsLoadingDashboard(false)
+    }
+  }
+
+  async function loadSection(section: SectionKey, force = false) {
     setActiveSection(section)
-    if (section === "dashboard") return
+
+    if (section === "dashboard") {
+      if (force) {
+        await refreshDashboard()
+      }
+      return
+    }
+
+    if (!force) {
+      if (section === "executions" && executions.length > 0) return
+      if (section === "users" && users.length > 0) return
+      if (section === "plugins" && plugins.length > 0) return
+      if (section === "roles" && roles.length > 0) return
+    }
+
     setIsLoadingSection(true)
     try {
       switch (section) {
@@ -115,6 +201,24 @@ export default function AdminPage() {
       setIsLoadingSection(false)
     }
   }
+
+  const totalPlugins = stats?.total_plugins ?? plugins.length
+  const healthyPlugins = stats?.healthy_plugins ?? plugins.filter((plugin) => plugin.status === "healthy").length
+  const unhealthyPlugins = stats?.unhealthy_plugins ?? Math.max(totalPlugins - healthyPlugins, 0)
+  const successfulLast24h = stats?.completed_last_24h ?? 0
+  const failedLast24h = stats?.failed_last_24h ?? 0
+  const recentExecutionWindow = successfulLast24h + failedLast24h
+  const successRate = recentExecutionWindow > 0 ? Math.round((successfulLast24h / recentExecutionWindow) * 100) : 100
+  const pluginHealthRate = totalPlugins > 0 ? Math.round((healthyPlugins / totalPlugins) * 100) : 100
+  const recentExecutions = executions.slice(0, 6)
+  const newestUsers = users.slice(0, 5)
+  const pluginAlerts = plugins.filter((plugin) => plugin.status !== "healthy").slice(0, 4)
+  const adminTone = unhealthyPlugins > 0 || failedLast24h > 0 ? "warning" : "success"
+  const adminHeadline = unhealthyPlugins > 0
+    ? `${unhealthyPlugins} plugin${unhealthyPlugins === 1 ? " is" : "s are"} degraded`
+    : failedLast24h > 0
+      ? `${failedLast24h} failed execution${failedLast24h === 1 ? "" : "s"} in the last 24h`
+      : "System looks healthy"
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -148,20 +252,227 @@ export default function AdminPage() {
               ? [{ label: SECTIONS.find((s) => s.key === activeSection)!.label }]
               : []),
           ]}
-          actions={<SecondaryPanelToggle />}
+          actions={(
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => void (activeSection === "dashboard" ? refreshDashboard() : loadSection(activeSection, true))}
+              >
+                <RefreshCw className="size-4" />
+                Refresh
+              </Button>
+              <SecondaryPanelToggle />
+            </>
+          )}
         />
 
         <div className="flex-1 overflow-auto p-4">
           {activeSection === "dashboard" && (
-            <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                <StatCard label="Users" value={stats?.total_users} icon={Users} />
-                <StatCard label="Plugins" value={stats?.total_plugins} icon={Package} />
-                <StatCard label="Task types" value={stats?.total_tasks} icon={Activity} />
-                <StatCard label="Executions" value={stats?.total_executions} icon={CheckCircle} />
-                <StatCard label="Running" value={stats?.running_now} icon={Loader2} />
+            isLoadingDashboard && !stats ? (
+              <DashboardSkeleton />
+            ) : (
+              <div className="flex flex-col gap-6">
+                <Card className="overflow-hidden border border-default-200 bg-content1 shadow-sm">
+                  <Card.Content className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)]">
+                    <div className="flex flex-col gap-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Chip size="sm" variant="soft" color={adminTone}>
+                          {adminHeadline}
+                        </Chip>
+                        <Chip size="sm" variant="soft" color="accent">
+                          {stats?.running_now ?? 0} running now
+                        </Chip>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                          Administration cockpit
+                        </h2>
+                        <p className="max-w-2xl text-sm leading-6 text-muted">
+                          Watch plugin health, execution reliability, and account growth from one place instead of drilling into every section.
+                        </p>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-[1.5rem] border border-default-200 bg-default-50/70 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Plugin posture</p>
+                          <p className="mt-2 text-2xl font-semibold tabular-nums">{healthyPlugins}/{totalPlugins}</p>
+                          <p className="mt-1 text-sm text-muted">healthy services available to users</p>
+                        </div>
+                        <div className="rounded-[1.5rem] border border-default-200 bg-default-50/70 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Executions 24h</p>
+                          <p className="mt-2 text-2xl font-semibold tabular-nums">{(successfulLast24h + failedLast24h).toLocaleString()}</p>
+                          <p className="mt-1 text-sm text-muted">recent completed and failed runs</p>
+                        </div>
+                        <div className="rounded-[1.5rem] border border-default-200 bg-default-50/70 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Active accounts</p>
+                          <p className="mt-2 text-2xl font-semibold tabular-nums">{(stats?.active_users ?? 0).toLocaleString()}</p>
+                          <p className="mt-1 text-sm text-muted">enabled users currently allowed to sign in</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 self-start">
+                      <Card variant="secondary" className="border border-default-200 shadow-none">
+                        <Card.Header className="pb-3">
+                          <Card.Title>Execution reliability</Card.Title>
+                          <Card.Description>Completed vs failed runs over the last 24 hours.</Card.Description>
+                        </Card.Header>
+                        <Card.Content className="gap-4">
+                          <ProgressBar value={successRate} color={failedLast24h > 0 ? "warning" : "success"}>
+                            <div className="flex items-center justify-between gap-3 text-sm">
+                              <Label>Success rate</Label>
+                              <ProgressBar.Output />
+                            </div>
+                            <ProgressBar.Track>
+                              <ProgressBar.Fill />
+                            </ProgressBar.Track>
+                          </ProgressBar>
+                          <div className="flex items-center justify-between text-sm text-muted">
+                            <span>{successfulLast24h.toLocaleString()} completed</span>
+                            <span>{failedLast24h.toLocaleString()} failed</span>
+                          </div>
+                        </Card.Content>
+                      </Card>
+
+                      <Card variant="secondary" className="border border-default-200 shadow-none">
+                        <Card.Header className="pb-3">
+                          <Card.Title>Plugin health</Card.Title>
+                          <Card.Description>Healthy services compared to total registered plugins.</Card.Description>
+                        </Card.Header>
+                        <Card.Content className="gap-4">
+                          <ProgressBar value={pluginHealthRate} color={unhealthyPlugins > 0 ? "warning" : "accent"}>
+                            <div className="flex items-center justify-between gap-3 text-sm">
+                              <Label>Healthy coverage</Label>
+                              <ProgressBar.Output />
+                            </div>
+                            <ProgressBar.Track>
+                              <ProgressBar.Fill />
+                            </ProgressBar.Track>
+                          </ProgressBar>
+                          <div className="flex items-center justify-between text-sm text-muted">
+                            <span>{healthyPlugins.toLocaleString()} healthy</span>
+                            <span>{unhealthyPlugins.toLocaleString()} degraded</span>
+                          </div>
+                        </Card.Content>
+                      </Card>
+                    </div>
+                  </Card.Content>
+                </Card>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <StatCard label="Users" helper="registered accounts" value={stats?.total_users} icon={Users} />
+                  <StatCard label="Roles" helper="rbac definitions" value={stats?.total_roles} icon={Shield} />
+                  <StatCard label="Task types" helper="available task templates" value={stats?.total_tasks} icon={Activity} />
+                  <StatCard label="Executions" helper="total recorded runs" value={stats?.total_executions} icon={CheckCircle2} />
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+                  <Card className="border border-default-200 bg-content1 shadow-sm">
+                    <Card.Header className="pb-2">
+                      <Card.Title>Recent executions</Card.Title>
+                      <Card.Description>The latest task activity across all users.</Card.Description>
+                    </Card.Header>
+                    <Card.Content className="p-0">
+                      <Table variant="secondary">
+                        <Table.ScrollContainer>
+                          <Table.Content aria-label="Recent executions">
+                            <Table.Header>
+                              <Table.Column>Task</Table.Column>
+                              <Table.Column>Status</Table.Column>
+                              <Table.Column>User</Table.Column>
+                              <Table.Column>Started</Table.Column>
+                            </Table.Header>
+                            <Table.Body renderEmptyState={() => <EmptyState message="No executions recorded yet." />}>
+                              {recentExecutions.map((exec) => (
+                                <Table.Row key={exec.id}>
+                                  <Table.Cell className="font-medium">{exec.task_name || exec.task_slug}</Table.Cell>
+                                  <Table.Cell>
+                                    <Chip
+                                      size="sm"
+                                      variant="soft"
+                                      color={
+                                        exec.status === "completed"
+                                          ? "success"
+                                          : exec.status === "failed"
+                                            ? "danger"
+                                            : "default"
+                                      }
+                                    >
+                                      {exec.status}
+                                    </Chip>
+                                  </Table.Cell>
+                                  <Table.Cell className="max-w-48 truncate text-sm text-muted">{exec.user_id}</Table.Cell>
+                                  <Table.Cell className="text-sm text-muted">
+                                    {format(new Date(exec.started_at), "MMM d, HH:mm")}
+                                  </Table.Cell>
+                                </Table.Row>
+                              ))}
+                            </Table.Body>
+                          </Table.Content>
+                        </Table.ScrollContainer>
+                      </Table>
+                    </Card.Content>
+                  </Card>
+
+                  <div className="grid gap-4">
+                    <Card className="border border-default-200 bg-content1 shadow-sm">
+                      <Card.Header className="pb-2">
+                        <Card.Title>Plugin watchlist</Card.Title>
+                        <Card.Description>Anything outside healthy status is surfaced here.</Card.Description>
+                      </Card.Header>
+                      <Card.Content className="gap-3">
+                        {pluginAlerts.length > 0 ? (
+                          pluginAlerts.map((plugin) => (
+                            <div key={plugin.id} className="flex items-start justify-between gap-3 rounded-[1.25rem] border border-default-200 bg-default-50/70 p-4">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground">{plugin.name}</p>
+                                <p className="truncate text-xs text-muted">{plugin.grpc_address}</p>
+                              </div>
+                              <Chip size="sm" variant="soft" color="warning">
+                                {plugin.status}
+                              </Chip>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-[1.25rem] border border-success/20 bg-success/5 p-4 text-sm text-success">
+                            All registered plugins are currently healthy.
+                          </div>
+                        )}
+                      </Card.Content>
+                    </Card>
+
+                    <Card className="border border-default-200 bg-content1 shadow-sm">
+                      <Card.Header className="pb-2">
+                        <Card.Title>Newest users</Card.Title>
+                        <Card.Description>Recently created accounts and activation state.</Card.Description>
+                      </Card.Header>
+                      <Card.Content className="gap-3">
+                        {newestUsers.length > 0 ? (
+                          newestUsers.map((user) => (
+                            <div key={user.id} className="flex items-center justify-between gap-3 rounded-[1.25rem] border border-default-200 bg-default-50/70 p-4">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground">{user.username}</p>
+                                <p className="truncate text-xs text-muted">{user.email}</p>
+                              </div>
+                              <div className="text-right">
+                                <Chip size="sm" variant="soft" color={user.is_active ? "success" : "default"}>
+                                  {user.is_active ? "Active" : "Inactive"}
+                                </Chip>
+                                <p className="mt-2 text-xs text-muted">{format(new Date(user.created_at), "MMM d")}</p>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <EmptyState message="No users created yet." />
+                        )}
+                      </Card.Content>
+                    </Card>
+                  </div>
+                </div>
               </div>
-            </div>
+            )
           )}
 
           {activeSection === "executions" && (
@@ -174,7 +485,7 @@ export default function AdminPage() {
                     <Table.Column>Status</Table.Column>
                     <Table.Column>Started</Table.Column>
                   </Table.Header>
-                  <Table.Body>
+                  <Table.Body renderEmptyState={() => <EmptyState message="No executions recorded yet." />}>
                     {executions.map((exec) => (
                       <Table.Row key={exec.id}>
                         <Table.Cell className="font-medium">{exec.task_slug}</Table.Cell>
@@ -217,7 +528,7 @@ export default function AdminPage() {
                     <Table.Column>Active</Table.Column>
                     <Table.Column>Created</Table.Column>
                   </Table.Header>
-                  <Table.Body>
+                  <Table.Body renderEmptyState={() => <EmptyState message="No users available." />}>
                     {users.map((user) => (
                       <Table.Row key={user.id}>
                         <Table.Cell className="font-medium">{user.username}</Table.Cell>
@@ -252,7 +563,7 @@ export default function AdminPage() {
                     <Table.Column>Status</Table.Column>
                     <Table.Column>Last Seen</Table.Column>
                   </Table.Header>
-                  <Table.Body>
+                  <Table.Body renderEmptyState={() => <EmptyState message="No plugins registered." />}>
                     {plugins.map((plugin) => (
                       <Table.Row key={plugin.id}>
                         <Table.Cell className="font-medium">{plugin.name}</Table.Cell>
@@ -288,7 +599,7 @@ export default function AdminPage() {
                     <Table.Column>Description</Table.Column>
                     <Table.Column>Type</Table.Column>
                   </Table.Header>
-                  <Table.Body>
+                  <Table.Body renderEmptyState={() => <EmptyState message="No roles configured." />}>
                     {roles.map((role) => (
                       <Table.Row key={role.id}>
                         <Table.Cell className="font-medium">
@@ -332,5 +643,11 @@ function SectionTable({
       </div>
     )
   }
-  return <Table>{children}</Table>
+  return (
+    <Card className="border border-default-200 bg-content1 shadow-sm">
+      <Card.Content className="p-0">
+        <Table variant="secondary">{children}</Table>
+      </Card.Content>
+    </Card>
+  )
 }

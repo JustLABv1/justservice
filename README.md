@@ -296,10 +296,14 @@ helm upgrade --install justservice ./deploy/helm/justservice \
     --set plugins.garage.enabled=true \
     --set plugins.garage.env[0].name=GARAGE_ADMIN_URL \
     --set plugins.garage.env[0].value="https://garage-admin.example.com" \
+    --set plugins.garage.env[1].name=GARAGE_S3_ENDPOINT \
+    --set plugins.garage.env[1].value="https://garage.example.com" \
     --set plugins.garage.secretEnv[0].name=GARAGE_ADMIN_TOKEN \
     --set plugins.garage.secretEnv[0].secretName=garage-plugin \
     --set plugins.garage.secretEnv[0].secretKey=admin-token
 ```
+
+`GARAGE_S3_ENDPOINT` should point to the user-reachable S3 endpoint, not the internal admin API. The Garage plugin uses it for the "Bucket Usage Guide" task so users get correct connection instructions.
 
 The release workflow publishes Docker images for `api`, `web`, `plugin-hello-world`, `plugin-webhook`, and `plugin-garage` to GHCR. It expects the repository variable `NEXT_PUBLIC_API_URL` to be set so the web image is built with the correct backend URL.
 

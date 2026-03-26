@@ -105,6 +105,8 @@ plugins:
     env:
       - name: GARAGE_ADMIN_URL
         value: http://garage-s3:3903
+      - name: GARAGE_S3_ENDPOINT
+        value: https://garage.example.com
     secretEnv: []
     # Example:
     # secretEnv:

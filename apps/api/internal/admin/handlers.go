@@ -23,19 +23,31 @@ func New(db *sqlx.DB) *Handler {
 // Stats returns dashboard stats.
 func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 	var stats struct {
-		TotalUsers      int `json:"total_users" db:"total_users"`
-		TotalPlugins    int `json:"total_plugins" db:"total_plugins"`
-		TotalTasks      int `json:"total_tasks" db:"total_tasks"`
-		TotalExecutions int `json:"total_executions" db:"total_executions"`
-		RunningNow      int `json:"running_now" db:"running_now"`
+		TotalUsers        int `json:"total_users" db:"total_users"`
+		ActiveUsers       int `json:"active_users" db:"active_users"`
+		TotalPlugins      int `json:"total_plugins" db:"total_plugins"`
+		HealthyPlugins    int `json:"healthy_plugins" db:"healthy_plugins"`
+		UnhealthyPlugins  int `json:"unhealthy_plugins" db:"unhealthy_plugins"`
+		TotalTasks        int `json:"total_tasks" db:"total_tasks"`
+		TotalRoles        int `json:"total_roles" db:"total_roles"`
+		TotalExecutions   int `json:"total_executions" db:"total_executions"`
+		RunningNow        int `json:"running_now" db:"running_now"`
+		CompletedLast24h  int `json:"completed_last_24h" db:"completed_last_24h"`
+		FailedLast24h     int `json:"failed_last_24h" db:"failed_last_24h"`
 	}
 	err := h.db.GetContext(r.Context(), &stats, `
 		SELECT
 		  (SELECT COUNT(*) FROM users) AS total_users,
-		  (SELECT COUNT(*) FROM plugins WHERE status='healthy') AS total_plugins,
+		  (SELECT COUNT(*) FROM users WHERE is_active = true) AS active_users,
+		  (SELECT COUNT(*) FROM plugins) AS total_plugins,
+		  (SELECT COUNT(*) FROM plugins WHERE status='healthy') AS healthy_plugins,
+		  (SELECT COUNT(*) FROM plugins WHERE status <> 'healthy') AS unhealthy_plugins,
 		  (SELECT COUNT(*) FROM task_definitions) AS total_tasks,
+		  (SELECT COUNT(*) FROM roles) AS total_roles,
 		  (SELECT COUNT(*) FROM executions) AS total_executions,
-		  (SELECT COUNT(*) FROM executions WHERE status='running') AS running_now
+		  (SELECT COUNT(*) FROM executions WHERE status='running') AS running_now,
+		  (SELECT COUNT(*) FROM executions WHERE status='completed' AND started_at >= NOW() - INTERVAL '24 hours') AS completed_last_24h,
+		  (SELECT COUNT(*) FROM executions WHERE status='failed' AND started_at >= NOW() - INTERVAL '24 hours') AS failed_last_24h
 	`)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to load stats")

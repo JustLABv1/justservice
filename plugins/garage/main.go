@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -371,6 +373,34 @@ func resolveOwnedBucket(ctx context.Context, g *garageClient, scope userScope, i
 	return nil, nil
 }
 
+func garageS3Endpoint(adminURL string) string {
+	override := strings.TrimSpace(sdk.EnvOrDefault("GARAGE_S3_ENDPOINT", ""))
+	if override != "" {
+		return strings.TrimRight(override, "/")
+	}
+
+	parsed, err := url.Parse(adminURL)
+	if err != nil || parsed.Host == "" {
+		return strings.TrimRight(adminURL, "/")
+	}
+
+	host := parsed.Hostname()
+	port := parsed.Port()
+	switch port {
+	case "3903":
+		parsed.Host = net.JoinHostPort(host, "3900")
+	case "":
+		parsed.Host = host
+	}
+
+	parsed.Path = ""
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	return strings.TrimRight(parsed.String(), "/")
+}
+
 // ---------------------------------------------------------------------------
 // Input validation
 // ---------------------------------------------------------------------------
@@ -548,6 +578,109 @@ func opGetBucketInfo(ctx context.Context, g *garageClient, ec sdk.ExecuteContext
 	}, nil
 }
 
+func opBucketUsageGuide(ctx context.Context, g *garageClient, ec sdk.ExecuteContext, s3Endpoint, s3Region string) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
+	name, _ := ec.Input["name"].(string)
+	bucket, err := resolveOwnedBucket(ctx, g, scope, name)
+	if err != nil {
+		return nil, err
+	}
+	if bucket == nil {
+		return nil, fmt.Errorf("bucket %q not found", strings.TrimSpace(name))
+	}
+
+	b, err := g.getBucket(ctx, bucket.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get bucket: %w", err)
+	}
+
+	actualName := ownedGlobalAlias(scope, b.GlobalAliases)
+	if actualName == "" {
+		actualName = bucket.Name
+	}
+
+	type linkedKey struct {
+		KeyID       string `json:"key_id"`
+		Name        string `json:"name"`
+		DisplayName string `json:"display_name"`
+		Read        bool   `json:"read"`
+		Write       bool   `json:"write"`
+	}
+
+	var linkedKeys []linkedKey
+	for _, key := range b.Keys {
+		if !isOwned(scope, key.Name) {
+			continue
+		}
+
+		linkedKeys = append(linkedKeys, linkedKey{
+			KeyID:       key.AccessKeyID,
+			Name:        key.Name,
+			DisplayName: friendlyName(scope, key.Name),
+			Read:        key.Permissions.Read,
+			Write:       key.Permissions.Write,
+		})
+	}
+	if linkedKeys == nil {
+		linkedKeys = []linkedKey{}
+	}
+
+	accessKeyHint := "<your-access-key-id>"
+	if len(linkedKeys) > 0 {
+		accessKeyHint = linkedKeys[0].KeyID
+	}
+
+	endpoint := strings.TrimRight(s3Endpoint, "/")
+	bucketURL := endpoint + "/" + actualName
+	secretPlaceholder := "<paste-the-secret-key-from-create-access-key>"
+	notes := []string{
+		"Use the endpoint URL exactly as shown below. Garage is S3-compatible, but it is not the AWS default endpoint.",
+		"Always pass the custom endpoint to your client or CLI and keep path-style addressing enabled.",
+		"The secret key cannot be retrieved again. If you lost it, create a new access key and grant it access to this bucket.",
+	}
+	if len(linkedKeys) == 0 {
+		notes = append(notes, "This bucket currently has no linked access keys. Create a key and grant it bucket access before attempting to connect.")
+	}
+
+	return map[string]any{
+		"bucket_name":         actualName,
+		"bucket_display_name": bucket.DisplayName,
+		"connection": map[string]any{
+			"endpoint":         endpoint,
+			"region":           s3Region,
+			"bucket_url":       bucketURL,
+			"force_path_style": true,
+			"tls":              strings.HasPrefix(strings.ToLower(endpoint), "https://"),
+		},
+		"linked_keys": linkedKeys,
+		"aws_cli": map[string]any{
+			"env_exports": []string{
+				fmt.Sprintf("export AWS_ACCESS_KEY_ID=%s", accessKeyHint),
+				fmt.Sprintf("export AWS_SECRET_ACCESS_KEY=%s", secretPlaceholder),
+				fmt.Sprintf("export AWS_DEFAULT_REGION=%s", s3Region),
+				"export AWS_S3_FORCE_PATH_STYLE=true",
+			},
+			"list_bucket": fmt.Sprintf("aws --endpoint-url %s --region %s s3 ls s3://%s", endpoint, s3Region, actualName),
+			"upload_example": fmt.Sprintf("aws --endpoint-url %s --region %s s3 cp ./example.txt s3://%s/example.txt", endpoint, s3Region, actualName),
+			"download_example": fmt.Sprintf("aws --endpoint-url %s --region %s s3 cp s3://%s/example.txt ./example.txt", endpoint, s3Region, actualName),
+		},
+		"rclone": map[string]any{
+			"config_lines": []string{
+				"[justservice-garage]",
+				"type = s3",
+				"provider = Other",
+				fmt.Sprintf("access_key_id = %s", accessKeyHint),
+				fmt.Sprintf("secret_access_key = %s", secretPlaceholder),
+				fmt.Sprintf("endpoint = %s", endpoint),
+				fmt.Sprintf("region = %s", s3Region),
+				"force_path_style = true",
+			},
+			"list_bucket": fmt.Sprintf("rclone ls justservice-garage:%s", actualName),
+		},
+		"notes": notes,
+	}, nil
+}
+
 func opListKeys(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
 	scope := newUserScope(ec.UserID, ec.Username)
 	all, err := g.listKeys(ctx)
@@ -722,6 +855,8 @@ func opDenyKey(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any
 func main() {
 	garageURL := sdk.EnvOrDefault("GARAGE_ADMIN_URL", "http://localhost:3903")
 	garageToken := sdk.EnvOrDefault("GARAGE_ADMIN_TOKEN", "")
+	s3Endpoint := garageS3Endpoint(garageURL)
+	s3Region := sdk.EnvOrDefault("GARAGE_S3_REGION", "garage")
 	if garageToken == "" {
 		log.Fatal("[garage] GARAGE_ADMIN_TOKEN env var is required")
 	}
@@ -804,6 +939,26 @@ func main() {
 			},
 		},
 		fn: func(ctx context.Context, ec sdk.ExecuteContext) (any, error) { return opGetBucketInfo(ctx, g, ec) },
+	})
+
+	p.Register(taskHandler{
+		def: sdk.TaskDefinition{
+			Name: "Bucket Usage Guide", Slug: "garage-bucket-usage-guide",
+			Description: "Show the S3 endpoint, linked keys, and copy-ready client examples for one of your buckets.",
+			Category:    "garage", IsSync: true,
+			InputSchema: map[string]any{
+				"type": "object", "required": []string{"name"},
+				"properties": map[string]any{
+					"name": map[string]any{
+						"type": "string", "title": "Bucket Name",
+						"description": "The bucket to generate connection guidance for.",
+					},
+				},
+			},
+		},
+		fn: func(ctx context.Context, ec sdk.ExecuteContext) (any, error) {
+			return opBucketUsageGuide(ctx, g, ec, s3Endpoint, s3Region)
+		},
 	})
 
 	// ---- Access key tasks ----

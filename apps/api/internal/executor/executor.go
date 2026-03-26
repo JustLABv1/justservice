@@ -57,10 +57,11 @@ func (s *Service) createExecution(ctx context.Context, userID, taskDefID uuid.UU
 		Status:           models.ExecutionStatusPending,
 		StartedAt:        time.Now(),
 	}
+	storedInputJSON := redactSensitiveJSON(inputJSON)
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO executions (id, user_id, task_definition_id, input_json, status, started_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
-	`, exec.ID, exec.UserID, exec.TaskDefinitionID, exec.InputJSON, exec.Status, exec.StartedAt)
+	`, exec.ID, exec.UserID, exec.TaskDefinitionID, storedInputJSON, exec.Status, exec.StartedAt)
 	return exec, err
 }
 
@@ -98,10 +99,11 @@ func (s *Service) executeSync(ctx context.Context, exec *models.Execution, td *m
 		exec.CompletedAt = &now
 		return
 	}
-	output := models.JSONB(resp.OutputJson)
-	s.updateStatusWithOutput(ctx, exec.ID, models.ExecutionStatusCompleted, output, &now)
+	rawOutput := models.JSONB(resp.OutputJson)
+	storedOutput := models.JSONB(redactSensitiveJSON(json.RawMessage(resp.OutputJson)))
+	s.updateStatusWithOutput(ctx, exec.ID, models.ExecutionStatusCompleted, storedOutput, &now)
 	exec.Status = models.ExecutionStatusCompleted
-	exec.OutputJSON = output
+	exec.OutputJSON = rawOutput
 }
 
 func (s *Service) executeAsync(ctx context.Context, exec *models.Execution, td *models.TaskDefinition, conn *grpc.ClientConn) {
@@ -131,7 +133,7 @@ func (s *Service) executeAsync(ctx context.Context, exec *models.Execution, td *
 		}
 		if progress.Status == "completed" {
 			now := time.Now()
-			output := models.JSONB(progress.OutputJson)
+			output := models.JSONB(redactSensitiveJSON(json.RawMessage(progress.OutputJson)))
 			s.updateStatusWithOutput(ctx, exec.ID, models.ExecutionStatusCompleted, output, &now)
 			return
 		}

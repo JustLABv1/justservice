@@ -47,8 +47,42 @@ interface ExecutionDetailProps {
   embedded?: boolean
 }
 
-function formatPayload(value: unknown) {
-  return JSON.stringify(value, null, 2)
+function normalizeSensitiveKey(key: string) {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "")
+}
+
+function isSensitiveKey(key: string) {
+  const normalized = normalizeSensitiveKey(key)
+
+  return (
+    normalized.includes("secret") ||
+    normalized.endsWith("password") ||
+    normalized.endsWith("token") ||
+    normalized.endsWith("apikey") ||
+    normalized.endsWith("privatekey") ||
+    normalized === "authorization"
+  )
+}
+
+function redactSensitiveFields(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactSensitiveFields)
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        isSensitiveKey(key) ? "[REDACTED]" : redactSensitiveFields(item),
+      ])
+    )
+  }
+
+  return value
+}
+
+function formatPayload(value: unknown, redactSensitive = false) {
+  return JSON.stringify(redactSensitive ? redactSensitiveFields(value) : value, null, 2)
 }
 
 function formatDuration(execution: Execution) {
@@ -243,7 +277,7 @@ export function ExecutionDetail({ executionId, embedded }: ExecutionDetailProps)
           {execution.output && (
             <Section title="Output">
               <pre className="max-h-[42rem] overflow-auto rounded-2xl border bg-surface-secondary p-5 font-mono text-sm leading-7 text-foreground">
-                {formatPayload(execution.output)}
+                {formatPayload(execution.output, true)}
               </pre>
             </Section>
           )}
@@ -264,7 +298,7 @@ export function ExecutionDetail({ executionId, embedded }: ExecutionDetailProps)
           {execution.input && (
             <Section title="Input">
               <pre className="max-h-[24rem] overflow-auto rounded-2xl border bg-surface-secondary p-5 font-mono text-sm leading-7 text-foreground">
-                {formatPayload(execution.input)}
+                {formatPayload(execution.input, true)}
               </pre>
             </Section>
           )}
