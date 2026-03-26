@@ -95,56 +95,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Docker metadata for hello-world plugin
-        id: plugin_hello_world_meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ steps.meta.outputs.owner }}/justservice/plugin-hello-world
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
-            type=raw,value=latest
-
-      - name: Build and push hello-world plugin image
-        uses: docker/build-push-action@v6
-        with:
-          context: plugins
-          file: deploy/docker/plugin.Dockerfile
-          build-args: |
-            PLUGIN_DIR=hello-world
-          push: true
-          tags: ${{ steps.plugin_hello_world_meta.outputs.tags }}
-          labels: ${{ steps.plugin_hello_world_meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Docker metadata for webhook plugin
-        id: plugin_webhook_meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ steps.meta.outputs.owner }}/justservice/plugin-webhook
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
-            type=raw,value=latest
-
-      - name: Build and push webhook plugin image
-        uses: docker/build-push-action@v6
-        with:
-          context: plugins
-          file: deploy/docker/plugin.Dockerfile
-          build-args: |
-            PLUGIN_DIR=webhook
-          push: true
-          tags: ${{ steps.plugin_webhook_meta.outputs.tags }}
-          labels: ${{ steps.plugin_webhook_meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Docker metadata for garage plugin
         id: plugin_garage_meta
         uses: docker/metadata-action@v5
@@ -181,8 +131,6 @@ jobs:
             --set config.jwtSecret=release-secret-change-me-32-characters \
             --set web.image.tag=${{ steps.meta.outputs.version }} \
             --set api.image.tag=${{ steps.meta.outputs.version }} \
-            --set plugins.hello-world.image.tag=${{ steps.meta.outputs.version }} \
-            --set plugins.webhook.image.tag=${{ steps.meta.outputs.version }} \
             --set plugins.garage.image.tag=${{ steps.meta.outputs.version }}
 
       - name: Login to GHCR for Helm
