@@ -100,7 +100,7 @@ jobs:
       - name: Build and push garage plugin image
         uses: docker/build-push-action@v6
         with:
-          context: plugins
+          context: .
           file: deploy/docker/plugin.Dockerfile
           build-args: |
             PLUGIN_DIR=garage

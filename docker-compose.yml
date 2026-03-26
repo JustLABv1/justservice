@@ -47,8 +47,8 @@ services:
   # Example plugins — remove or disable if not needed
   hello-world:
     build:
-      context: plugins
-      dockerfile: ../deploy/docker/plugin.Dockerfile
+      context: .
+      dockerfile: deploy/docker/plugin.Dockerfile
       args:
         PLUGIN_DIR: hello-world
     environment:
@@ -61,8 +61,8 @@ services:
 
   webhook:
     build:
-      context: plugins
-      dockerfile: ../deploy/docker/plugin.Dockerfile
+      context: .
+      dockerfile: deploy/docker/plugin.Dockerfile
       args:
         PLUGIN_DIR: webhook
     environment:
@@ -75,8 +75,8 @@ services:
 
   garage:
     build:
-      context: plugins
-      dockerfile: ../deploy/docker/plugin.Dockerfile
+      context: .
+      dockerfile: deploy/docker/plugin.Dockerfile
       args:
         PLUGIN_DIR: garage
     environment:

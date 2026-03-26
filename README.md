@@ -314,7 +314,7 @@ helm upgrade --install justservice ./deploy/helm/justservice \
 
 `GARAGE_S3_ENDPOINT` should point to the user-reachable S3 endpoint, not the internal admin API. The Garage plugin uses it for the "Bucket Usage Guide" task so users get correct connection instructions.
 
-The release workflow publishes Docker images for `api`, `web`, `plugin-hello-world`, `plugin-webhook`, and `plugin-garage` to GHCR. The web image is environment-agnostic; it reads `API_URL` at runtime instead of baking a deployment-specific backend URL into the release artifact.
+The release workflow publishes Docker images for `api`, `web`, and `plugin-garage` to GHCR. The web image is environment-agnostic; it reads `API_URL` at runtime instead of baking a deployment-specific backend URL into the release artifact.
 
 All configurable values are documented in [`deploy/helm/justservice/values.yaml`](deploy/helm/justservice/values.yaml).
 
