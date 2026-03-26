@@ -29,14 +29,6 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
 
-      - name: Ensure web release URL is configured
-        shell: bash
-        run: |
-          if [[ -z "${{ vars.NEXT_PUBLIC_API_URL }}" ]]; then
-            echo "Repository variable NEXT_PUBLIC_API_URL must be set for release builds." >&2
-            exit 1
-          fi
-
       - name: Login to GHCR for Docker
         uses: docker/login-action@v3
         with:
@@ -87,8 +79,6 @@ jobs:
         with:
           context: .
           file: apps/web/Dockerfile
-          build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
           push: true
           tags: ${{ steps.web_meta.outputs.tags }}
           labels: ${{ steps.web_meta.outputs.labels }}

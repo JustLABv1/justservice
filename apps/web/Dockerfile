@@ -20,9 +20,6 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY tsconfig.base.json ./tsconfig.base.json
 COPY apps/web ./apps/web
 
-# NEXT_PUBLIC_* vars are baked in at build time
-ARG NEXT_PUBLIC_API_URL=http://localhost:8080
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN pnpm --filter web build

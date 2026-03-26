@@ -51,9 +51,6 @@ web:
     limits:
       cpu: 200m
       memory: 256Mi
-  # Must match the NEXT_PUBLIC_API_URL used when building the web image.
-  # The same value is also exposed to the runtime auth proxy routes.
-  apiUrl: "https://api.justservice.example.com"
 
 # ---------- Plugins ----------
 plugins:

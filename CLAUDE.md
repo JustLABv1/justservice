@@ -90,7 +90,7 @@ The Go API uses viper with `JUSTSERVICE_` prefix. Required at runtime:
 |---|---|
 | `JUSTSERVICE_DATABASE_DSN` | PostgreSQL connection string |
 | `JUSTSERVICE_JWT_SECRET` | JWT signing secret (≥32 chars in production) |
-| `NEXT_PUBLIC_API_URL` | API base URL baked into Next.js at build time |
+| `API_URL` | Server-side base URL used by the Next.js runtime proxy to reach the API |
 
 Optional: `JUSTSERVICE_LOG_LEVEL` (info/debug/warn/error), `JUSTSERVICE_LOG_FORMAT` (json/pretty), `JUSTSERVICE_SERVER_PORT` (default 8080).
 

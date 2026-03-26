@@ -66,6 +66,11 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s-api:%v" (include "justservice.fullname" .) .Values.api.service.grpcPort -}}
 {{- end }}
 
+{{/* API HTTP endpoint for the web runtime proxy */}}
+{{- define "justservice.apiHttpAddress" -}}
+{{- printf "http://%s-api:%v" (include "justservice.fullname" .) .Values.api.service.httpPort -}}
+{{- end }}
+
 {{/* Database DSN — built from bundled postgres when postgresql.enabled = true */}}
 {{- define "justservice.databaseDsn" -}}
 {{- if .Values.postgresql.enabled }}

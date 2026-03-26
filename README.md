@@ -91,7 +91,7 @@ go run ./cmd/server
 ```bash
 # From the repo root
 pnpm install
-NEXT_PUBLIC_API_URL=http://localhost:8080 pnpm dev
+pnpm dev
 # Web UI on http://localhost:3000
 ```
 
@@ -123,11 +123,11 @@ All options can be set via `apps/api/config.yaml` **or** as environment variable
 | `log.format` | `JUSTSERVICE_LOG_FORMAT` | `json` | `json` \| `console` |
 | `oidc.public_base_url` | `JUSTSERVICE_OIDC_PUBLIC_BASE_URL` | `""` | Public browser-facing base URL used for OIDC callback URLs |
 
-Frontend variable (baked in at build time):
+Frontend runtime variable:
 
 | Variable | Description |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | Base URL of the Go API, e.g. `http://localhost:8080` |
+| `API_URL` | Server-side base URL of the Go API for the Next.js runtime proxy. Defaults to `http://localhost:8080` in local development. |
 
 ---
 
@@ -289,7 +289,6 @@ Services: `postgres`, `api` (`:8080` / `:9090`), `web` (`:3000`), `hello-world` 
 ```bash
 helm install justservice ./deploy/helm/justservice \
   --set config.jwtSecret="<your-secret>" \
-  --set web.apiUrl="https://api.yourdomain.com" \
   --set ingress.enabled=true \
     --set ingress.hosts[0].host="yourdomain.com"
 ```
@@ -315,7 +314,7 @@ helm upgrade --install justservice ./deploy/helm/justservice \
 
 `GARAGE_S3_ENDPOINT` should point to the user-reachable S3 endpoint, not the internal admin API. The Garage plugin uses it for the "Bucket Usage Guide" task so users get correct connection instructions.
 
-The release workflow publishes Docker images for `api`, `web`, `plugin-hello-world`, `plugin-webhook`, and `plugin-garage` to GHCR. It expects the repository variable `NEXT_PUBLIC_API_URL` to be set so the web image is built with the correct backend URL.
+The release workflow publishes Docker images for `api`, `web`, `plugin-hello-world`, `plugin-webhook`, and `plugin-garage` to GHCR. The web image is environment-agnostic; it reads `API_URL` at runtime instead of baking a deployment-specific backend URL into the release artifact.
 
 All configurable values are documented in [`deploy/helm/justservice/values.yaml`](deploy/helm/justservice/values.yaml).
 

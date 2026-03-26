@@ -1,7 +1,9 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+import { getBackendApiUrl } from "@/app/api/_lib/backend-url"
+
+const API_URL = getBackendApiUrl()
 const REFRESH_COOKIE = "refresh_token"
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60
 
