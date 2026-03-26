@@ -57,42 +57,6 @@ web:
 
 # ---------- Plugins ----------
 plugins:
-  hello-world:
-    enabled: true
-    image:
-      registry: ghcr.io
-      repository: justlab/justservice/plugin-hello-world
-      tag: ""
-      pullPolicy: IfNotPresent
-    replicaCount: 1
-    grpcPort: 9001
-    env: []
-    secretEnv: []
-    resources:
-      requests:
-        cpu: 25m
-        memory: 64Mi
-      limits:
-        cpu: 100m
-        memory: 128Mi
-  webhook:
-    enabled: true
-    image:
-      registry: ghcr.io
-      repository: justlab/justservice/plugin-webhook
-      tag: ""
-      pullPolicy: IfNotPresent
-    replicaCount: 1
-    grpcPort: 9002
-    env: []
-    secretEnv: []
-    resources:
-      requests:
-        cpu: 25m
-        memory: 64Mi
-      limits:
-        cpu: 100m
-        memory: 128Mi
   garage:
     enabled: false
     image:
