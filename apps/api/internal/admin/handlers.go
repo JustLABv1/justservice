@@ -23,17 +23,17 @@ func New(db *sqlx.DB) *Handler {
 // Stats returns dashboard stats.
 func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 	var stats struct {
-		TotalUsers        int `json:"total_users" db:"total_users"`
-		ActiveUsers       int `json:"active_users" db:"active_users"`
-		TotalPlugins      int `json:"total_plugins" db:"total_plugins"`
-		HealthyPlugins    int `json:"healthy_plugins" db:"healthy_plugins"`
-		UnhealthyPlugins  int `json:"unhealthy_plugins" db:"unhealthy_plugins"`
-		TotalTasks        int `json:"total_tasks" db:"total_tasks"`
-		TotalRoles        int `json:"total_roles" db:"total_roles"`
-		TotalExecutions   int `json:"total_executions" db:"total_executions"`
-		RunningNow        int `json:"running_now" db:"running_now"`
-		CompletedLast24h  int `json:"completed_last_24h" db:"completed_last_24h"`
-		FailedLast24h     int `json:"failed_last_24h" db:"failed_last_24h"`
+		TotalUsers       int `json:"total_users" db:"total_users"`
+		ActiveUsers      int `json:"active_users" db:"active_users"`
+		TotalPlugins     int `json:"total_plugins" db:"total_plugins"`
+		HealthyPlugins   int `json:"healthy_plugins" db:"healthy_plugins"`
+		UnhealthyPlugins int `json:"unhealthy_plugins" db:"unhealthy_plugins"`
+		TotalTasks       int `json:"total_tasks" db:"total_tasks"`
+		TotalRoles       int `json:"total_roles" db:"total_roles"`
+		TotalExecutions  int `json:"total_executions" db:"total_executions"`
+		RunningNow       int `json:"running_now" db:"running_now"`
+		CompletedLast24h int `json:"completed_last_24h" db:"completed_last_24h"`
+		FailedLast24h    int `json:"failed_last_24h" db:"failed_last_24h"`
 	}
 	err := h.db.GetContext(r.Context(), &stats, `
 		SELECT

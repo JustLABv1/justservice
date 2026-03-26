@@ -660,8 +660,8 @@ func opBucketUsageGuide(ctx context.Context, g *garageClient, ec sdk.ExecuteCont
 				fmt.Sprintf("export AWS_DEFAULT_REGION=%s", s3Region),
 				"export AWS_S3_FORCE_PATH_STYLE=true",
 			},
-			"list_bucket": fmt.Sprintf("aws --endpoint-url %s --region %s s3 ls s3://%s", endpoint, s3Region, actualName),
-			"upload_example": fmt.Sprintf("aws --endpoint-url %s --region %s s3 cp ./example.txt s3://%s/example.txt", endpoint, s3Region, actualName),
+			"list_bucket":      fmt.Sprintf("aws --endpoint-url %s --region %s s3 ls s3://%s", endpoint, s3Region, actualName),
+			"upload_example":   fmt.Sprintf("aws --endpoint-url %s --region %s s3 cp ./example.txt s3://%s/example.txt", endpoint, s3Region, actualName),
 			"download_example": fmt.Sprintf("aws --endpoint-url %s --region %s s3 cp s3://%s/example.txt ./example.txt", endpoint, s3Region, actualName),
 		},
 		"rclone": map[string]any{
