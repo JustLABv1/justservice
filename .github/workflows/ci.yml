@@ -105,30 +105,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build hello-world plugin image
-        uses: docker/build-push-action@v6
-        with:
-          context: plugins
-          file: deploy/docker/plugin.Dockerfile
-          build-args: |
-            PLUGIN_DIR=hello-world
-          push: false
-          load: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build webhook plugin image
-        uses: docker/build-push-action@v6
-        with:
-          context: plugins
-          file: deploy/docker/plugin.Dockerfile
-          build-args: |
-            PLUGIN_DIR=webhook
-          push: false
-          load: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Build garage plugin image
         uses: docker/build-push-action@v6
         with:

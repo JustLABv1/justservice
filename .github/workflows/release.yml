@@ -57,10 +57,10 @@ jobs:
           context: apps/api
           file: apps/api/Dockerfile
           push: true
+          provenance: false
+          sbom: false
           tags: ${{ steps.api_meta.outputs.tags }}
           labels: ${{ steps.api_meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Docker metadata for web
         id: web_meta
@@ -80,10 +80,10 @@ jobs:
           context: .
           file: apps/web/Dockerfile
           push: true
+          provenance: false
+          sbom: false
           tags: ${{ steps.web_meta.outputs.tags }}
           labels: ${{ steps.web_meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Docker metadata for garage plugin
         id: plugin_garage_meta
@@ -105,10 +105,10 @@ jobs:
           build-args: |
             PLUGIN_DIR=garage
           push: true
+          provenance: false
+          sbom: false
           tags: ${{ steps.plugin_garage_meta.outputs.tags }}
           labels: ${{ steps.plugin_garage_meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
@@ -142,7 +142,9 @@ jobs:
             oci://ghcr.io/${{ steps.meta.outputs.owner }}/charts
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: justservice-${{ steps.meta.outputs.version }}.tgz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "justservice-${{ steps.meta.outputs.version }}.tgz" \
+            --generate-notes
