@@ -119,6 +119,9 @@ Each plugin is defined under `plugins.<name>`:
 | `plugins.<name>.grpcPort` | gRPC port the plugin listens on | `9003` |
 | `plugins.<name>.env` | Plain environment variables | `[]` |
 | `plugins.<name>.secretEnv` | Secret-backed environment variables (see below) | `[]` |
+| `plugins.<name>.extraEnv` | Additional environment variables (e.g. `SSL_CERT_FILE`) | `[]` |
+| `plugins.<name>.extraVolumes` | Additional volumes (e.g. for a custom CA certificate) | `[]` |
+| `plugins.<name>.extraVolumeMounts` | Additional volume mounts | `[]` |
 | `plugins.<name>.resources` | CPU/memory requests and limits | see `values.yaml` |
 
 **Secret env example for plugins:**
@@ -130,6 +133,27 @@ plugins:
       - name: GARAGE_ADMIN_TOKEN
         secretName: garage-plugin-secrets
         secretKey: admin-token
+```
+
+**Custom CA certificate for plugins (internal/self-signed endpoints):**
+```bash
+kubectl create configmap internal-ca --from-file=ca.crt=/path/to/ca.crt
+```
+```yaml
+plugins:
+  garage:
+    enabled: true
+    extraEnv:
+      - name: SSL_CERT_FILE
+        value: /etc/ssl/internal-ca/ca.crt
+    extraVolumes:
+      - name: internal-ca
+        configMap:
+          name: internal-ca
+    extraVolumeMounts:
+      - name: internal-ca
+        mountPath: /etc/ssl/internal-ca
+        readOnly: true
 ```
 
 ### Ingress

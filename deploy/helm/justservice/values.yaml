@@ -83,6 +83,21 @@ plugins:
     #   - name: GARAGE_ADMIN_TOKEN
     #     secretName: garage-plugin
     #     secretKey: admin-token
+    # Extra environment variables injected into the plugin container.
+    # Useful for setting SSL_CERT_FILE when the plugin connects to services
+    # protected by an internal/self-signed CA.
+    extraEnv: []
+    #  - name: SSL_CERT_FILE
+    #    value: /etc/ssl/internal-ca/ca.crt
+    # Extra volumes and volume mounts (e.g. for mounting a custom CA certificate).
+    extraVolumes: []
+    #  - name: internal-ca
+    #    configMap:
+    #      name: internal-ca
+    extraVolumeMounts: []
+    #  - name: internal-ca
+    #    mountPath: /etc/ssl/internal-ca
+    #    readOnly: true
     resources:
       requests:
         cpu: 50m
