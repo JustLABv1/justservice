@@ -1,7 +1,7 @@
 "use client"
 
+import { Breadcrumbs } from "@heroui/react"
 import { ChevronRight } from "lucide-react"
-import Link from "next/link"
 
 export interface BreadcrumbEntry {
   label: string
@@ -16,35 +16,38 @@ interface PageHeaderProps {
 
 export function PageHeader({ breadcrumbs, title, actions }: PageHeaderProps) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-4 border-b px-4">
-      <div className="flex flex-1 items-center gap-2 min-w-0">
+    <header className="shrink-0 border-b border-default-200/80 bg-background/70 backdrop-blur-sm">
+      <div className="flex min-h-14 items-center gap-3 px-4 sm:px-5">
+        <div className="min-w-0 flex flex-1 items-center gap-2">
         {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav className="flex items-center gap-1 text-sm">
+          <Breadcrumbs
+            separator={<ChevronRight className="size-3 text-muted" />}
+            className="min-w-0 text-sm"
+          >
             {breadcrumbs.map((crumb, i) => {
               const isLast = i === breadcrumbs.length - 1
               return (
-                <span key={i} className="flex items-center gap-1">
-                  {i > 0 && <ChevronRight className="size-3 text-muted shrink-0" />}
-                  {isLast ? (
-                    <span className="font-medium truncate">{crumb.label}</span>
-                  ) : (
-                    <Link
-                      href={crumb.href ?? "#"}
-                      className="text-muted hover:text-foreground transition-colors"
-                    >
-                      {crumb.label}
-                    </Link>
-                  )}
-                </span>
+                <Breadcrumbs.Item
+                  key={`${crumb.label}-${i}`}
+                  href={isLast ? undefined : crumb.href}
+                  className={isLast ? "max-w-[16rem] truncate font-medium text-foreground" : "max-w-[12rem] truncate text-muted transition-colors hover:text-foreground"}
+                >
+                  <span className="truncate">{crumb.label}</span>
+                </Breadcrumbs.Item>
               )
             })}
-          </nav>
+          </Breadcrumbs>
         )}
         {title && !breadcrumbs?.length && (
-          <h1 className="text-sm font-medium truncate">{title}</h1>
+          <h1 className="truncate text-sm font-medium text-foreground">{title}</h1>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+      {actions && (
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto">
+          {actions}
+        </div>
+      )}
+      </div>
     </header>
   )
 }

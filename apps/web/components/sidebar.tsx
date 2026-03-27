@@ -15,7 +15,7 @@ import {
   Settings,
   Sun,
 } from "lucide-react"
-import { Avatar, Button, Dropdown, Label, Separator } from "@heroui/react"
+import { Avatar, Button, Dropdown, Label, Separator, Tooltip } from "@heroui/react"
 import { useAuth } from "@/components/auth-provider"
 
 const NAV_ITEMS = [
@@ -102,12 +102,23 @@ export function AppSidebar() {
         {!collapsed && (
           <p className="px-2.5 py-1 text-xs font-medium text-muted">Navigation</p>
         )}
-        {NAV_ITEMS.map((item) => (
-          <Link key={item.href} href={item.href} className={navItemClass(isActive(item.href))}>
-            <item.icon className="size-4 shrink-0" />
-            {!collapsed && <span>{item.label}</span>}
-          </Link>
-        ))}
+        {NAV_ITEMS.map((item) =>
+          collapsed ? (
+            <Tooltip key={item.href} delay={0}>
+              <Link href={item.href} className={navItemClass(isActive(item.href))}>
+                <item.icon className="size-4 shrink-0" />
+              </Link>
+              <Tooltip.Content placement="right">
+                <p>{item.label}</p>
+              </Tooltip.Content>
+            </Tooltip>
+          ) : (
+            <Link key={item.href} href={item.href} className={navItemClass(isActive(item.href))}>
+              <item.icon className="size-4 shrink-0" />
+              <span>{item.label}</span>
+            </Link>
+          )
+        )}
 
         {isAdmin && (
           <>
@@ -115,16 +126,23 @@ export function AppSidebar() {
             {!collapsed && (
               <p className="px-2.5 py-1 text-xs font-medium text-muted">Administration</p>
             )}
-            {ADMIN_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={navItemClass(isActive(item.href))}
-              >
-                <item.icon className="size-4 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
-            ))}
+            {ADMIN_ITEMS.map((item) =>
+              collapsed ? (
+                <Tooltip key={item.href} delay={0}>
+                  <Link href={item.href} className={navItemClass(isActive(item.href))}>
+                    <item.icon className="size-4 shrink-0" />
+                  </Link>
+                  <Tooltip.Content placement="right">
+                    <p>{item.label}</p>
+                  </Tooltip.Content>
+                </Tooltip>
+              ) : (
+                <Link key={item.href} href={item.href} className={navItemClass(isActive(item.href))}>
+                  <item.icon className="size-4 shrink-0" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            )}
           </>
         )}
 
@@ -135,18 +153,40 @@ export function AppSidebar() {
         <Separator className="mb-2" />
 
         {/* Theme toggle */}
-        <Button
-          isIconOnly={collapsed}
-          size="sm"
-          variant="ghost"
-          onPress={() => setTheme(theme === "dark" ? "light" : "dark")}
-          aria-label="Toggle theme"
-          className={`text-muted ${collapsed ? "mx-auto" : "w-full justify-start gap-2.5 px-2.5"}`}
-        >
-          <Sun className="size-4 shrink-0 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute size-4 shrink-0 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          {!collapsed && <span className="ml-6">Toggle theme</span>}
-        </Button>
+        {collapsed ? (
+          <Tooltip delay={0}>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              onPress={() => setTheme(theme === "dark" ? "light" : "dark")}
+              aria-label="Toggle theme"
+              className="mx-auto text-muted"
+            >
+              <div className="relative size-4 shrink-0">
+                <Sun className="absolute inset-0 size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute inset-0 size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              </div>
+            </Button>
+            <Tooltip.Content placement="right">
+              <p>Toggle theme</p>
+            </Tooltip.Content>
+          </Tooltip>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onPress={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label="Toggle theme"
+            className="w-full justify-start gap-2.5 px-2.5 text-muted"
+          >
+            <div className="relative size-4 shrink-0">
+              <Sun className="absolute inset-0 size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute inset-0 size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            </div>
+            <span>Toggle theme</span>
+          </Button>
+        )}
 
         {/* User dropdown */}
         <Dropdown>

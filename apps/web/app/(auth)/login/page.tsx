@@ -62,12 +62,16 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <Card.Header className="text-center">
-        <Card.Title>Sign in</Card.Title>
-        <Card.Description>Enter your credentials to continue</Card.Description>
+    <Card className="w-full rounded-[1.75rem] border border-default-200/70 bg-content1/95 shadow-xl shadow-black/5 backdrop-blur-sm">
+      <Card.Header className="gap-3 pb-2 text-left">
+        <div className="space-y-2">
+          <Card.Title className="text-2xl tracking-tight">Sign in</Card.Title>
+          <Card.Description className="text-sm leading-6">
+            Use your workspace account to launch tasks, review recent runs, and manage operational workflows.
+          </Card.Description>
+        </div>
       </Card.Header>
-      <Card.Content>
+      <Card.Content className="gap-0">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="username">Username or Email</Label>
@@ -77,6 +81,8 @@ export default function LoginPage() {
               type="text"
               autoComplete="username"
               placeholder="you@example.com"
+              variant="secondary"
+              className="h-11"
               required
               disabled={isLoading}
             />
@@ -89,6 +95,8 @@ export default function LoginPage() {
               type="password"
               autoComplete="current-password"
               placeholder="••••••••"
+              variant="secondary"
+              className="h-11"
               required
               disabled={isLoading}
             />
@@ -100,9 +108,9 @@ export default function LoginPage() {
 
         {providers && providers.length > 0 && (
           <>
-            <div className="flex items-center gap-3 my-4">
+            <div className="my-4 flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-xs text-muted">or</span>
+              <span className="text-xs font-medium uppercase tracking-[0.16em] text-muted">SSO</span>
               <Separator className="flex-1" />
             </div>
             <div className="flex flex-col gap-2">
@@ -127,7 +135,7 @@ export default function LoginPage() {
           </>
         )}
       </Card.Content>
-      <Card.Footer className="justify-center">
+      <Card.Footer className="justify-start pt-2">
         <p className="text-sm text-muted">
           Don&apos;t have an account?{" "}
           <Link href="/register" className="font-medium underline-offset-4 hover:underline">

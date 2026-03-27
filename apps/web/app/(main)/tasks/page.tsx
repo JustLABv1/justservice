@@ -46,18 +46,20 @@ function TasksPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialQuery = searchParams.get("q") ?? ""
-  const { openDetail } = useDetailPanel()
+  const { openDetail, isOpen: detailIsOpen } = useDetailPanel()
   const [query, setQuery] = useState(initialQuery)
   const [allTasks, setAllTasks] = useState<TaskDefinition[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({})
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const highlightedTaskId = detailIsOpen ? activeTaskId : null
 
   useEffect(() => {
     if (authLoading) return
-    tasksApi.list().then(setAllTasks).finally(() => setIsLoading(false))
+    tasksApi.list().then((data) => setAllTasks(data ?? [])).finally(() => setIsLoading(false))
   }, [authLoading])
 
   useEffect(() => {
@@ -70,6 +72,11 @@ function TasksPageContent() {
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
   }, [])
+
+  function handleOpenTask(task: TaskDefinition) {
+    setActiveTaskId(task.id)
+    openDetail(task.name, <TaskRunner task={task} />)
+  }
 
   const filtered = allTasks.filter((t) => {
     const matchesQuery =
@@ -149,10 +156,13 @@ function TasksPageContent() {
                       .map((t) => (
                         <button
                           key={t.id}
-                          className="truncate rounded px-2 py-1 text-left text-xs text-muted hover:bg-surface-secondary transition-colors"
-                          onClick={() =>
-                            openDetail(t.name, <TaskRunner task={t} />)
-                          }
+                          className={cn(
+                            "truncate rounded px-2 py-1 text-left text-xs transition-colors",
+                            highlightedTaskId === t.id
+                              ? "bg-accent/10 text-accent font-medium"
+                              : "text-muted hover:bg-surface-secondary"
+                          )}
+                          onClick={() => handleOpenTask(t)}
                         >
                           {t.name}
                         </button>
@@ -229,12 +239,10 @@ function TasksPageContent() {
                 <TaskContextMenu key={task.id} task={task}>
                   <TaskCard
                     task={task}
-                    onClick={() =>
-                      openDetail(task.name, <TaskRunner task={task} />)
-                    }
+                    isActive={highlightedTaskId === task.id}
+                    onClick={() => handleOpenTask(task)}
                     onAction={(action) => {
-                      if (action === "run")
-                        openDetail(task.name, <TaskRunner task={task} />)
+                      if (action === "run") handleOpenTask(task)
                       else if (action === "open")
                         router.push(`/tasks/${task.slug}`)
                       else if (action === "copy") {
@@ -254,9 +262,8 @@ function TasksPageContent() {
                 <TaskContextMenu key={task.id} task={task}>
                   <TaskListItem
                     task={task}
-                    onClick={() =>
-                      openDetail(task.name, <TaskRunner task={task} />)
-                    }
+                    isActive={highlightedTaskId === task.id}
+                    onClick={() => handleOpenTask(task)}
                   />
                 </TaskContextMenu>
               ))}
@@ -286,16 +293,21 @@ function TasksPageSkeleton() {
 
 function TaskCard({
   task,
+  isActive,
   onClick,
   onAction,
 }: {
   task: TaskDefinition
+  isActive: boolean
   onClick: () => void
   onAction: (action: "run" | "open" | "copy") => void
 }) {
   return (
     <Card
-      className="cursor-pointer transition-shadow hover:shadow-md"
+      className={cn(
+        "cursor-pointer transition-shadow hover:shadow-md",
+        isActive && "ring-2 ring-accent/40"
+      )}
       onClick={onClick}
     >
       <Card.Header className="pb-2">
@@ -367,18 +379,23 @@ function TaskCard({
 
 function TaskListItem({
   task,
+  isActive,
   onClick,
 }: {
   task: TaskDefinition
+  isActive: boolean
   onClick: () => void
 }) {
   return (
     <button
-      className="flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-secondary"
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-secondary",
+        isActive && "bg-accent/10"
+      )}
       onClick={onClick}
     >
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{task.name}</p>
+        <p className={cn("text-sm font-medium truncate", isActive && "text-accent")}>{task.name}</p>
         <p className="text-xs text-muted truncate">{task.description}</p>
       </div>
       <Chip

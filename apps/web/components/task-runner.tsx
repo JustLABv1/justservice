@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle, Loader2, Play, XCircle } from "lucide-react"
+import { ArrowUpRight, Check, CheckCircle, Copy, Loader2, Play, RotateCcw, XCircle } from "lucide-react"
 import { toast } from "@heroui/react"
 
 import { Button, Chip, Description, Input, Label, Separator, Switch } from "@heroui/react"
@@ -91,6 +91,7 @@ export function TaskRunner({ task }: TaskRunnerProps) {
   const router = useRouter()
   const [isExecuting, setIsExecuting] = useState(false)
   const [execution, setExecution] = useState<Execution | null>(null)
+  const [outputCopied, setOutputCopied] = useState(false)
   const pollRef = useRef<number | null>(null)
 
   const properties = normalizeSchema(task.input_schema).properties ?? {}
@@ -173,6 +174,15 @@ export function TaskRunner({ task }: TaskRunnerProps) {
     }, 1500)
   }
 
+  const isTerminal = execution?.status === "completed" || execution?.status === "failed"
+
+  function copyOutput() {
+    if (!execution?.output) return
+    navigator.clipboard.writeText(JSON.stringify(execution.output, null, 2))
+    setOutputCopied(true)
+    setTimeout(() => setOutputCopied(false), 2000)
+  }
+
   return (
     <div className="flex flex-col gap-5">
       {/* Task meta */}
@@ -232,31 +242,61 @@ export function TaskRunner({ task }: TaskRunnerProps) {
         <>
           <Separator />
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              {execution.status === "completed" ? (
-                <CheckCircle className="size-4 text-success" />
-              ) : execution.status === "failed" ? (
-                <XCircle className="size-4 text-danger" />
-              ) : (
-                <Loader2 className="size-4 animate-spin text-muted" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {execution.status === "completed" ? (
+                  <CheckCircle className="size-4 text-success" />
+                ) : execution.status === "failed" ? (
+                  <XCircle className="size-4 text-danger" />
+                ) : (
+                  <Loader2 className="size-4 animate-spin text-muted" />
+                )}
+                <span className="text-sm font-medium capitalize">{execution.status}</span>
+              </div>
+              {isTerminal && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => setExecution(null)}
+                >
+                  <RotateCcw className="size-3.5" />
+                  Run again
+                </Button>
               )}
-              <span className="text-sm font-medium capitalize">{execution.status}</span>
             </div>
             {execution.error?.Valid && (
               <p className="text-sm text-danger">{execution.error.String}</p>
             )}
             {execution.output && (
-              <pre className="max-h-80 overflow-auto rounded-lg bg-surface-secondary p-4 text-sm leading-6 font-mono">
-                {JSON.stringify(execution.output, null, 2)}
-              </pre>
+              <div className="group relative">
+                <pre className="max-h-80 overflow-auto rounded-lg bg-surface-secondary p-4 text-sm leading-6 font-mono">
+                  {JSON.stringify(execution.output, null, 2)}
+                </pre>
+                <Button
+                  isIconOnly
+                  variant="ghost"
+                  size="sm"
+                  onPress={copyOutput}
+                  className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Copy output"
+                >
+                  {outputCopied ? (
+                    <Check className="size-3.5 text-success" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                </Button>
+              </div>
             )}
-            <button
-              type="button"
-              className="text-xs text-accent hover:underline self-start"
-              onClick={() => router.push(`/executions/${execution.id}`)}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onPress={() => router.push(`/executions/${execution.id}`)}
             >
-              View full execution &rarr;
-            </button>
+              View full execution
+              <ArrowUpRight data-icon="inline-end" />
+            </Button>
           </div>
         </>
       )}

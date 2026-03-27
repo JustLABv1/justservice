@@ -46,12 +46,16 @@ export default function RegisterPage() {
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <Card.Header className="text-center">
-        <Card.Title>Create account</Card.Title>
-        <Card.Description>Fill in the details below to get started</Card.Description>
+    <Card className="w-full rounded-[1.75rem] border border-default-200/70 bg-content1/95 shadow-xl shadow-black/5 backdrop-blur-sm">
+      <Card.Header className="gap-3 pb-2 text-left">
+        <div className="space-y-2">
+          <Card.Title className="text-2xl tracking-tight">Create account</Card.Title>
+          <Card.Description className="text-sm leading-6">
+            Set up an operator account to run tasks, track execution history, and work from the shared control surface.
+          </Card.Description>
+        </div>
       </Card.Header>
-      <Card.Content>
+      <Card.Content className="gap-0">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="username">Username</Label>
@@ -61,6 +65,8 @@ export default function RegisterPage() {
               type="text"
               autoComplete="username"
               placeholder="johndoe"
+              variant="secondary"
+              className="h-11"
               required
               disabled={isLoading}
             />
@@ -73,6 +79,8 @@ export default function RegisterPage() {
               type="email"
               autoComplete="email"
               placeholder="you@example.com"
+              variant="secondary"
+              className="h-11"
               required
               disabled={isLoading}
             />
@@ -85,6 +93,8 @@ export default function RegisterPage() {
               type="password"
               autoComplete="new-password"
               placeholder="••••••••"
+              variant="secondary"
+              className="h-11"
               required
               minLength={8}
               disabled={isLoading}
@@ -98,6 +108,8 @@ export default function RegisterPage() {
               type="password"
               autoComplete="new-password"
               placeholder="••••••••"
+              variant="secondary"
+              className="h-11"
               required
               minLength={8}
               disabled={isLoading}
@@ -108,7 +120,7 @@ export default function RegisterPage() {
           </Button>
         </form>
       </Card.Content>
-      <Card.Footer className="justify-center">
+      <Card.Footer className="justify-start pt-2">
         <p className="text-sm text-muted">
           Already have an account?{" "}
           <Link href="/login" className="font-medium underline-offset-4 hover:underline">

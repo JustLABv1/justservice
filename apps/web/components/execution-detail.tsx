@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { format, formatDistanceStrict } from "date-fns"
 import {
+  Check,
   CheckCircle,
+  Clock,
+  Copy,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -14,7 +17,7 @@ import {
 import { Button, Card, Chip, Separator, Skeleton } from "@heroui/react"
 import { executions as execApi, type Execution } from "@/lib/api"
 
-function StatusBadge({ status }: { status: string }) {
+export function ExecutionStatusChip({ status }: { status: string }) {
   switch (status) {
     case "completed":
       return (
@@ -32,19 +35,25 @@ function StatusBadge({ status }: { status: string }) {
       )
     case "running":
       return (
-        <Chip color="default" variant="soft" size="sm" className="gap-1">
+        <Chip color="accent" variant="soft" size="sm" className="gap-1">
           <Loader2 className="size-3 animate-spin" />
           Running
         </Chip>
       )
     default:
-      return <Chip variant="soft" size="sm">Pending</Chip>
+      return (
+        <Chip variant="soft" size="sm" className="gap-1">
+          <Clock className="size-3" />
+          Pending
+        </Chip>
+      )
   }
 }
 
 interface ExecutionDetailProps {
   executionId: string
   embedded?: boolean
+  onTitleResolved?: (title: string) => void
 }
 
 function normalizeSensitiveKey(key: string) {
@@ -91,6 +100,30 @@ function formatDuration(execution: Execution) {
   return formatDistanceStrict(end, start)
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  return (
+    <Button
+      isIconOnly
+      variant="ghost"
+      size="sm"
+      onPress={() => {
+        navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }}
+      aria-label="Copy"
+    >
+      {copied ? (
+        <Check className="size-3.5 text-success" />
+      ) : (
+        <Copy className="size-3.5" />
+      )}
+    </Button>
+  )
+}
+
 function Section({
   title,
   children,
@@ -108,7 +141,7 @@ function Section({
   )
 }
 
-export function ExecutionDetail({ executionId, embedded }: ExecutionDetailProps) {
+export function ExecutionDetail({ executionId, embedded, onTitleResolved }: ExecutionDetailProps) {
   const router = useRouter()
   const [execution, setExecution] = useState<Execution | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -120,13 +153,14 @@ export function ExecutionDetail({ executionId, embedded }: ExecutionDetailProps)
     try {
       const exec = await execApi.get(executionId)
       setExecution(exec)
+      onTitleResolved?.(exec.task_name || exec.task_slug)
       return exec
     } catch {
       if (!embedded) router.push("/executions")
     } finally {
       setIsLoading(false)
     }
-  }, [executionId, embedded, router])
+  }, [executionId, embedded, onTitleResolved, router])
 
   function connectStream(exec: Execution) {
     if (exec.status !== "pending" && exec.status !== "running") return
@@ -226,7 +260,7 @@ export function ExecutionDetail({ executionId, embedded }: ExecutionDetailProps)
               <h2 className={isCompact ? "text-lg font-semibold" : "text-2xl font-semibold tracking-tight"}>
                 {execution.task_name || execution.task_slug}
               </h2>
-              <StatusBadge status={execution.status} />
+              <ExecutionStatusChip status={execution.status} />
             </div>
             <p className="mt-2 break-all font-mono text-xs text-muted">{execution.id}</p>
           </div>
@@ -276,9 +310,14 @@ export function ExecutionDetail({ executionId, embedded }: ExecutionDetailProps)
         <div className="flex min-w-0 flex-col gap-6">
           {execution.output && (
             <Section title="Output">
-              <pre className="max-h-[42rem] overflow-auto rounded-2xl border bg-surface-secondary p-5 font-mono text-sm leading-7 text-foreground">
-                {formatPayload(execution.output, true)}
-              </pre>
+              <div className="group relative">
+                <pre className="max-h-[42rem] overflow-auto rounded-2xl border bg-surface-secondary p-5 font-mono text-sm leading-7 text-foreground">
+                  {formatPayload(execution.output, true)}
+                </pre>
+                <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <CopyButton text={formatPayload(execution.output, true)} />
+                </div>
+              </div>
             </Section>
           )}
 
@@ -297,9 +336,14 @@ export function ExecutionDetail({ executionId, embedded }: ExecutionDetailProps)
         <div className="flex min-w-0 flex-col gap-6">
           {execution.input && (
             <Section title="Input">
-              <pre className="max-h-[24rem] overflow-auto rounded-2xl border bg-surface-secondary p-5 font-mono text-sm leading-7 text-foreground">
-                {formatPayload(execution.input, true)}
-              </pre>
+              <div className="group relative">
+                <pre className="max-h-[24rem] overflow-auto rounded-2xl border bg-surface-secondary p-5 font-mono text-sm leading-7 text-foreground">
+                  {formatPayload(execution.input, true)}
+                </pre>
+                <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <CopyButton text={formatPayload(execution.input, true)} />
+                </div>
+              </div>
             </Section>
           )}
         </div>

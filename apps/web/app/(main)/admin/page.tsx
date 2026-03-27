@@ -1,24 +1,22 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { format } from "date-fns"
 import {
   Activity,
-  AlertTriangle,
   CheckCircle2,
-  Clock3,
-  Loader2,
   Package,
   RefreshCw,
   Shield,
-  UserPlus,
+  Trash2,
   Users,
 } from "lucide-react"
 import { toast } from "@heroui/react"
 
-import { Button, Card, Chip, Label, ProgressBar, Skeleton, Table, cn } from "@heroui/react"
+import { AlertDialog, Button, Card, Chip, Label, ProgressBar, Skeleton, Table, cn } from "@heroui/react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
+import { ExecutionStatusChip } from "@/components/execution-detail"
 import { PageHeader } from "@/components/page-header"
 import { SecondaryPanel, SecondaryPanelToggle } from "@/components/secondary-panel"
 import {
@@ -65,10 +63,10 @@ function StatCard({
 }) {
   return (
     <Card className="overflow-hidden border border-default-200 bg-content1 shadow-sm">
-      <Card.Content className="flex min-h-36 flex-col justify-between gap-5 p-5">
+      <Card.Content className="flex min-h-24 flex-col justify-between gap-3 p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="rounded-2xl bg-accent/10 p-3 text-accent">
-            <Icon className="size-5" />
+          <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
+            <Icon className="size-4.5" />
           </div>
           <Chip size="sm" variant="soft" color="accent">
             {label}
@@ -76,11 +74,11 @@ function StatCard({
         </div>
         <div className="space-y-1">
           {value === undefined ? (
-            <Skeleton className="mb-1 h-8 w-24" />
+            <Skeleton className="mb-1 h-7 w-20" />
           ) : (
-            <p className="text-3xl font-semibold tracking-tight tabular-nums">{typeof value === "number" ? value.toLocaleString() : value}</p>
+            <p className="text-2xl font-semibold tracking-tight tabular-nums">{typeof value === "number" ? value.toLocaleString() : value}</p>
           )}
-          <p className="text-xs uppercase tracking-[0.16em] text-muted">{helper}</p>
+          <p className="text-[11px] uppercase tracking-[0.16em] text-muted">{helper}</p>
         </div>
       </Card.Content>
     </Card>
@@ -93,7 +91,7 @@ function DashboardSkeleton() {
       <Skeleton className="h-56 rounded-[2rem]" />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-36 rounded-[1.5rem]" />
+          <Skeleton key={index} className="h-24 rounded-[1.25rem]" />
         ))}
       </div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
@@ -124,6 +122,11 @@ export default function AdminPage() {
   const [activeSection, setActiveSection] = useState<SectionKey>("dashboard")
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true)
   const [isLoadingSection, setIsLoadingSection] = useState(false)
+
+  const usersById = useMemo(
+    () => Object.fromEntries(users.map((u) => [u.id, u.username])),
+    [users]
+  )
 
   useEffect(() => {
     if (authLoading) return
@@ -199,6 +202,16 @@ export default function AdminPage() {
       toast.danger(`Failed to load ${section}`)
     } finally {
       setIsLoadingSection(false)
+    }
+  }
+
+  async function handleDeregisterPlugin(id: string) {
+    try {
+      await admin.deregisterPlugin(id)
+      setPlugins((prev) => prev.filter((p) => p.id !== id))
+      toast.success("Plugin deregistered")
+    } catch {
+      toast.danger("Failed to deregister plugin")
     }
   }
 
@@ -377,7 +390,11 @@ export default function AdminPage() {
                     <Card.Content className="p-0">
                       <Table variant="secondary">
                         <Table.ScrollContainer>
-                          <Table.Content aria-label="Recent executions">
+                          <Table.Content
+                            aria-label="Recent executions"
+                            onRowAction={(key) => router.push(`/executions/${String(key)}`)}
+                            className="[&_tr]:cursor-pointer"
+                          >
                             <Table.Header>
                               <Table.Column>Task</Table.Column>
                               <Table.Column>Status</Table.Column>
@@ -389,21 +406,11 @@ export default function AdminPage() {
                                 <Table.Row key={exec.id}>
                                   <Table.Cell className="font-medium">{exec.task_name || exec.task_slug}</Table.Cell>
                                   <Table.Cell>
-                                    <Chip
-                                      size="sm"
-                                      variant="soft"
-                                      color={
-                                        exec.status === "completed"
-                                          ? "success"
-                                          : exec.status === "failed"
-                                            ? "danger"
-                                            : "default"
-                                      }
-                                    >
-                                      {exec.status}
-                                    </Chip>
+                                    <ExecutionStatusChip status={exec.status} />
                                   </Table.Cell>
-                                  <Table.Cell className="max-w-48 truncate text-sm text-muted">{exec.user_id}</Table.Cell>
+                                  <Table.Cell className="max-w-48 truncate text-sm text-muted">
+                                    {usersById[exec.user_id] ?? exec.user_id.slice(0, 8) + "…"}
+                                  </Table.Cell>
                                   <Table.Cell className="text-sm text-muted">
                                     {format(new Date(exec.started_at), "MMM d, HH:mm")}
                                   </Table.Cell>
@@ -478,7 +485,11 @@ export default function AdminPage() {
           {activeSection === "executions" && (
             <SectionTable isLoading={isLoadingSection}>
               <Table.ScrollContainer>
-                <Table.Content aria-label="Executions">
+                <Table.Content
+                  aria-label="Executions"
+                  onRowAction={(key) => router.push(`/executions/${String(key)}`)}
+                  className="[&_tr]:cursor-pointer"
+                >
                   <Table.Header>
                     <Table.Column>Task</Table.Column>
                     <Table.Column>User</Table.Column>
@@ -488,22 +499,12 @@ export default function AdminPage() {
                   <Table.Body renderEmptyState={() => <EmptyState message="No executions recorded yet." />}>
                     {executions.map((exec) => (
                       <Table.Row key={exec.id}>
-                        <Table.Cell className="font-medium">{exec.task_slug}</Table.Cell>
-                        <Table.Cell className="text-muted text-sm">{exec.user_id}</Table.Cell>
+                        <Table.Cell className="font-medium">{exec.task_name || exec.task_slug}</Table.Cell>
+                        <Table.Cell className="text-muted text-sm">
+                          {usersById[exec.user_id] ?? exec.user_id.slice(0, 8) + "…"}
+                        </Table.Cell>
                         <Table.Cell>
-                          <Chip
-                            size="sm"
-                            variant="soft"
-                            color={
-                              exec.status === "completed"
-                                ? "success"
-                                : exec.status === "failed"
-                                  ? "danger"
-                                  : "default"
-                            }
-                          >
-                            {exec.status}
-                          </Chip>
+                          <ExecutionStatusChip status={exec.status} />
                         </Table.Cell>
                         <Table.Cell className="text-muted text-sm">
                           {exec.started_at
@@ -562,6 +563,7 @@ export default function AdminPage() {
                     <Table.Column>Address</Table.Column>
                     <Table.Column>Status</Table.Column>
                     <Table.Column>Last Seen</Table.Column>
+                    <Table.Column>Actions</Table.Column>
                   </Table.Header>
                   <Table.Body renderEmptyState={() => <EmptyState message="No plugins registered." />}>
                     {plugins.map((plugin) => (
@@ -581,6 +583,48 @@ export default function AdminPage() {
                           {plugin.last_heartbeat
                             ? format(new Date(plugin.last_heartbeat), "MMM d, HH:mm")
                             : "—"}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <AlertDialog>
+                            <Button
+                              variant="ghost"
+                              isIconOnly
+                              size="sm"
+                              aria-label="Deregister plugin"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2 className="size-4 text-muted" />
+                            </Button>
+                            <AlertDialog.Backdrop>
+                              <AlertDialog.Container>
+                                <AlertDialog.Dialog className="sm:max-w-[400px]">
+                                  <AlertDialog.CloseTrigger />
+                                  <AlertDialog.Header>
+                                    <AlertDialog.Icon status="danger" />
+                                    <AlertDialog.Heading>Deregister plugin?</AlertDialog.Heading>
+                                  </AlertDialog.Header>
+                                  <AlertDialog.Body>
+                                    <p>
+                                      This will remove <strong>{plugin.name}</strong> from the registry.
+                                      It will re-register automatically if the plugin process is still running.
+                                    </p>
+                                  </AlertDialog.Body>
+                                  <AlertDialog.Footer>
+                                    <Button slot="close" variant="tertiary">
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      slot="close"
+                                      variant="danger"
+                                      onPress={() => handleDeregisterPlugin(plugin.id)}
+                                    >
+                                      Deregister
+                                    </Button>
+                                  </AlertDialog.Footer>
+                                </AlertDialog.Dialog>
+                              </AlertDialog.Container>
+                            </AlertDialog.Backdrop>
+                          </AlertDialog>
                         </Table.Cell>
                       </Table.Row>
                     ))}

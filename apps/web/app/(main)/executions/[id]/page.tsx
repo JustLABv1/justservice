@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 
@@ -10,13 +11,14 @@ import { PageHeader } from "@/components/page-header"
 export default function ExecutionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const [title, setTitle] = useState<string>(id)
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <PageHeader
         breadcrumbs={[
           { label: "Executions", href: "/executions" },
-          { label: id },
+          { label: title },
         ]}
         actions={
           <Button variant="ghost" size="sm" onPress={() => router.push("/executions")}>
@@ -27,7 +29,7 @@ export default function ExecutionDetailPage() {
       />
       <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
         <div className="mx-auto w-full max-w-7xl">
-          <ExecutionDetail executionId={id} />
+          <ExecutionDetail executionId={id} onTitleResolved={setTitle} />
         </div>
       </div>
     </div>
