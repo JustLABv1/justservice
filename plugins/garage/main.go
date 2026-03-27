@@ -681,6 +681,112 @@ func opBucketUsageGuide(ctx context.Context, g *garageClient, ec sdk.ExecuteCont
 	}, nil
 }
 
+func opProvisionBucket(ctx context.Context, g *garageClient, ec sdk.ExecuteContext, s3Endpoint, s3Region string) (any, error) {
+	scope := newUserScope(ec.UserID, ec.Username)
+
+	bucketName, _ := ec.Input["bucket_name"].(string)
+	bucketName = strings.TrimSpace(bucketName)
+	if err := validateBucketName(scope, bucketName); err != nil {
+		return nil, err
+	}
+
+	keyLabel, _ := ec.Input["key_label"].(string)
+	keyLabel = strings.TrimSpace(keyLabel)
+	if err := validateKeyLabel(keyLabel); err != nil {
+		return nil, err
+	}
+
+	read := true
+	write := true
+	if v, ok := ec.Input["read"].(bool); ok {
+		read = v
+	}
+	if v, ok := ec.Input["write"].(bool); ok {
+		write = v
+	}
+
+	// 1. Create bucket
+	alias := qualifiedAlias(scope, bucketName)
+	bucket, err := g.createBucket(ctx, alias)
+	if err != nil {
+		return nil, fmt.Errorf("create bucket: %w", err)
+	}
+	actualBucketName := ownedGlobalAlias(scope, bucket.GlobalAliases)
+	if actualBucketName == "" {
+		actualBucketName = alias
+	}
+
+	// 2. Create key
+	keyName := qualifiedAlias(scope, keyLabel)
+	key, err := g.createKey(ctx, keyName)
+	if err != nil {
+		_ = g.deleteBucket(ctx, bucket.ID)
+		return nil, fmt.Errorf("create key: %w", err)
+	}
+
+	// 3. Grant key access to bucket
+	if err := g.allowKey(ctx, bucket.ID, key.AccessKeyID, read, write); err != nil {
+		_ = g.deleteKey(ctx, key.AccessKeyID)
+		_ = g.deleteBucket(ctx, bucket.ID)
+		return nil, fmt.Errorf("grant access: %w", err)
+	}
+
+	// 4. Build connection guide with the real secret key
+	endpoint := strings.TrimRight(s3Endpoint, "/")
+	bucketURL := endpoint + "/" + actualBucketName
+
+	return map[string]any{
+		"bucket": map[string]any{
+			"id":           bucket.ID,
+			"name":         actualBucketName,
+			"display_name": bucketName,
+		},
+		"key": map[string]any{
+			"key_id":       key.AccessKeyID,
+			"secret_key":   key.SecretAccessKey,
+			"name":         key.Name,
+			"display_name": keyLabel,
+			"warning":      "The secret key is shown only once. Store it securely - it cannot be retrieved again.",
+		},
+		"permissions": map[string]any{
+			"read":  read,
+			"write": write,
+		},
+		"connection": map[string]any{
+			"endpoint":         endpoint,
+			"region":           s3Region,
+			"bucket_url":       bucketURL,
+			"force_path_style": true,
+			"tls":              strings.HasPrefix(strings.ToLower(endpoint), "https://"),
+		},
+		"aws_cli": map[string]any{
+			"env_exports": []string{
+				fmt.Sprintf("export AWS_ACCESS_KEY_ID=%s", key.AccessKeyID),
+				fmt.Sprintf("export AWS_SECRET_ACCESS_KEY=%s", key.SecretAccessKey),
+				fmt.Sprintf("export AWS_DEFAULT_REGION=%s", s3Region),
+				"export AWS_S3_FORCE_PATH_STYLE=true",
+			},
+			"list_bucket":      fmt.Sprintf("aws --endpoint-url %s --region %s s3 ls s3://%s", endpoint, s3Region, actualBucketName),
+			"upload_example":   fmt.Sprintf("aws --endpoint-url %s --region %s s3 cp ./example.txt s3://%s/example.txt", endpoint, s3Region, actualBucketName),
+			"download_example": fmt.Sprintf("aws --endpoint-url %s --region %s s3 cp s3://%s/example.txt ./example.txt", endpoint, s3Region, actualBucketName),
+		},
+		"rclone": map[string]any{
+			"config_lines": []string{
+				"[justservice-garage]",
+				"type = s3",
+				"provider = Other",
+				fmt.Sprintf("access_key_id = %s", key.AccessKeyID),
+				fmt.Sprintf("secret_access_key = %s", key.SecretAccessKey),
+				fmt.Sprintf("endpoint = %s", endpoint),
+				fmt.Sprintf("region = %s", s3Region),
+				"force_path_style = true",
+			},
+			"list_bucket": fmt.Sprintf("rclone ls justservice-garage:%s", actualBucketName),
+		},
+		"message": fmt.Sprintf("Bucket %q created with key %q and access granted (read=%v write=%v)", bucketName, keyLabel, read, write),
+	}, nil
+}
+
 func opListKeys(ctx context.Context, g *garageClient, ec sdk.ExecuteContext) (any, error) {
 	scope := newUserScope(ec.UserID, ec.Username)
 	all, err := g.listKeys(ctx)
@@ -958,6 +1064,40 @@ func main() {
 		},
 		fn: func(ctx context.Context, ec sdk.ExecuteContext) (any, error) {
 			return opBucketUsageGuide(ctx, g, ec, s3Endpoint, s3Region)
+		},
+	})
+
+	p.Register(taskHandler{
+		def: sdk.TaskDefinition{
+			Name: "Create Bucket & Access Key", Slug: "garage-provision-bucket",
+			Description: "Create a bucket, create an access key, link the key to the bucket, and show ready-to-use connection details — all in one step.",
+			Category:    "garage", IsSync: true,
+			InputSchema: map[string]any{
+				"type": "object", "required": []string{"bucket_name", "key_label"},
+				"properties": map[string]any{
+					"bucket_name": map[string]any{
+						"type": "string", "title": "Bucket Name",
+						"description": "Lowercase letters, digits, and hyphens. Must start with a letter or digit.",
+					},
+					"key_label": map[string]any{
+						"type": "string", "title": "Key Label",
+						"description": "A short descriptive name for the access key, e.g. my-app, ci-runner, backups.",
+					},
+					"read": map[string]any{
+						"type": "boolean", "title": "Read Access",
+						"description": "Allow read (GET/HEAD) operations. Default: true.",
+						"default":     true,
+					},
+					"write": map[string]any{
+						"type": "boolean", "title": "Write Access",
+						"description": "Allow write (PUT/DELETE) operations. Default: true.",
+						"default":     true,
+					},
+				},
+			},
+		},
+		fn: func(ctx context.Context, ec sdk.ExecuteContext) (any, error) {
+			return opProvisionBucket(ctx, g, ec, s3Endpoint, s3Region)
 		},
 	})
 

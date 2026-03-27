@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { CheckCircle, Loader2, Play, XCircle } from "lucide-react"
 import { toast } from "@heroui/react"
 
-import { Button, Chip, Input, Label, Separator } from "@heroui/react"
+import { Button, Chip, Description, Input, Label, Separator, Switch } from "@heroui/react"
 import {
   executions as execApi,
   tasks as tasksApi,
@@ -37,12 +37,30 @@ function SchemaField({
 }: {
   name: string
   schema: Record<string, unknown>
-  value: string
-  onChange: (val: string) => void
+  value: unknown
+  onChange: (val: unknown) => void
 }) {
   const labelText = (schema.title as string) || name
   const description = schema.description as string | undefined
   const type = schema.type as string
+
+  if (type === "boolean") {
+    return (
+      <Switch
+        isSelected={value === true}
+        onChange={(checked) => onChange(checked)}
+        name={name}
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        <Switch.Content>
+          <Label className="text-sm font-medium">{labelText}</Label>
+          {description && <Description className="text-xs">{description}</Description>}
+        </Switch.Content>
+      </Switch>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -54,7 +72,7 @@ function SchemaField({
         id={name}
         type={type === "integer" || type === "number" ? "number" : "text"}
         placeholder={description}
-        value={value}
+        value={value as string}
         onChange={(e) => onChange(e.target.value)}
         variant="secondary"
       />
@@ -71,13 +89,24 @@ interface TaskRunnerProps {
 
 export function TaskRunner({ task }: TaskRunnerProps) {
   const router = useRouter()
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [isExecuting, setIsExecuting] = useState(false)
   const [execution, setExecution] = useState<Execution | null>(null)
   const pollRef = useRef<number | null>(null)
 
   const properties = normalizeSchema(task.input_schema).properties ?? {}
   const hasFields = Object.keys(properties).length > 0
+
+  const [fieldValues, setFieldValues] = useState<Record<string, unknown>>(() => {
+    const schema = normalizeSchema(task.input_schema)
+    const init: Record<string, unknown> = {}
+    for (const [key, fieldSchema] of Object.entries(schema.properties ?? {})) {
+      const s = fieldSchema as Record<string, unknown>
+      if (s.type === "boolean") {
+        init[key] = s.default !== undefined ? Boolean(s.default) : false
+      }
+    }
+    return init
+  })
 
   useEffect(() => {
     return () => {
@@ -91,12 +120,12 @@ export function TaskRunner({ task }: TaskRunnerProps) {
     const schema = normalizeSchema(task.input_schema)
     const result: Record<string, unknown> = {}
     for (const [key, fieldSchema] of Object.entries(schema.properties ?? {})) {
-      const raw = fieldValues[key] ?? ""
+      const raw = fieldValues[key]
       const type = fieldSchema.type as string
-      if (type === "integer") result[key] = parseInt(raw, 10)
-      else if (type === "number") result[key] = parseFloat(raw)
-      else if (type === "boolean") result[key] = raw === "true"
-      else result[key] = raw
+      if (type === "integer") result[key] = parseInt(raw as string, 10)
+      else if (type === "number") result[key] = parseFloat(raw as string)
+      else if (type === "boolean") result[key] = typeof raw === "boolean" ? raw : raw === "true"
+      else result[key] = raw ?? ""
     }
     return result
   }
