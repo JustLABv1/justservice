@@ -67,10 +67,12 @@ func Load(configPath string) (*Config, error) {
 	// Defaults
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
+	v.SetDefault("database.dsn", "")
 	v.SetDefault("database.max_open_conns", 25)
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.conn_max_lifetime", "5m")
 	v.SetDefault("database.migrations_path", "file://migrations")
+	v.SetDefault("jwt.secret", "")
 	v.SetDefault("jwt.access_token_ttl", "15m")
 	v.SetDefault("jwt.refresh_token_ttl", "168h")
 	v.SetDefault("grpc.host", "0.0.0.0")

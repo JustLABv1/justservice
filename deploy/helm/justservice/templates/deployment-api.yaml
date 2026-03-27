@@ -43,7 +43,7 @@ spec:
             - name: JUSTSERVICE_DATABASE_DSN
               valueFrom:
                 secretKeyRef:
-                  {{- if and (not .Values.postgresql.enabled) .Values.database.existingSecret.name }}
+                  {{- if .Values.database.existingSecret.name }}
                   name: {{ .Values.database.existingSecret.name }}
                   key: {{ .Values.database.existingSecret.key | quote }}
                   {{- else }}
