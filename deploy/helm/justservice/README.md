@@ -72,6 +72,27 @@ helm install justservice oci://ghcr.io/justlabv1/charts/justservice \
 | `api.service.grpcPort` | gRPC port (used by plugins) | `9090` |
 | `api.resources` | CPU/memory requests and limits | see `values.yaml` |
 | `api.extraEnv` | Additional environment variables | `[]` |
+| `api.extraVolumes` | Additional volumes (e.g. for custom CA certificates) | `[]` |
+| `api.extraVolumeMounts` | Additional volume mounts | `[]` |
+
+**Custom CA certificate (internal/self-signed Keycloak):**
+```bash
+kubectl create configmap internal-ca --from-file=ca.crt=/path/to/ca.crt
+```
+```yaml
+api:
+  extraEnv:
+    - name: SSL_CERT_FILE
+      value: /etc/ssl/internal-ca/ca.crt
+  extraVolumes:
+    - name: internal-ca
+      configMap:
+        name: internal-ca
+  extraVolumeMounts:
+    - name: internal-ca
+      mountPath: /etc/ssl/internal-ca
+      readOnly: true
+```
 
 ### Web
 

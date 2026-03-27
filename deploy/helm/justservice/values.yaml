@@ -32,6 +32,15 @@ api:
   extraEnv: []
   #  - name: JUSTSERVICE_LOG_LEVEL
   #    value: debug
+  # Extra volumes and volume mounts (e.g. for mounting a custom CA certificate)
+  extraVolumes: []
+  #  - name: internal-ca
+  #    configMap:
+  #      name: internal-ca
+  extraVolumeMounts: []
+  #  - name: internal-ca
+  #    mountPath: /etc/ssl/internal-ca
+  #    readOnly: true
 
 # ---------- Web ----------
 web:
