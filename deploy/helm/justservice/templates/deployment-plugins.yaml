@@ -26,10 +26,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ $pluginName }}
           image: "{{ include "justservice.image" (dict "root" $ "image" $plugin.image) }}"
           imagePullPolicy: {{ $plugin.image.pullPolicy }}
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
           ports:
             - name: grpc
               containerPort: {{ $plugin.grpcPort }}
@@ -56,11 +60,15 @@ spec:
               port: grpc
             initialDelaySeconds: 10
             periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
           readinessProbe:
             tcpSocket:
               port: grpc
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           resources:
             {{- toYaml $plugin.resources | nindent 12 }}
 ---

@@ -104,8 +104,22 @@ ingress:
 
 # ---------- Configuration ----------
 config:
-  # REQUIRED — change before deploying
+  # Production setup: reference a pre-existing K8s Secret instead of putting
+  # the JWT signing secret in values. When existingSecret.name is set,
+  # config.jwtSecret below is ignored and no jwt-secret key is written to the
+  # chart-managed Secret.
+  #
+  # Example:
+  #   kubectl create secret generic justservice-jwt \
+  #     --from-literal=jwt-secret=$(openssl rand -base64 48)
+  existingSecret:
+    name: ""
+    key: jwt-secret
+
+  # REQUIRED when config.existingSecret.name is empty — change before deploying.
+  # Minimum 32 characters recommended for production.
   jwtSecret: ""
+
   logLevel: info
   logFormat: json
   oidc:
@@ -137,15 +151,40 @@ config:
 
 # ---------- Database ----------
 database:
-  # Full PostgreSQL DSN. Required when postgresql.enabled = false.
+  # Full PostgreSQL DSN. Required when postgresql.enabled = false and
+  # database.existingSecret.name is not set.
   dsn: ""
 
+  # Reference a pre-existing K8s Secret that contains the full database DSN.
+  # When set, database.dsn above is ignored.
+  #
+  # Example:
+  #   kubectl create secret generic justservice-db \
+  #     --from-literal=database-dsn='postgres://user:pass@host:5432/db?sslmode=require'
+  existingSecret:
+    name: ""
+    key: database-dsn
+
 # ---------- Bundled PostgreSQL ----------
-# Set enabled: false and provide database.dsn for production deployments.
+# Suitable for development and single-node setups.
+# For production: set enabled: false and supply database.dsn or database.existingSecret.
 postgresql:
   enabled: true
   username: justservice
+  # Password used when existingSecret.name is empty.
+  # NOTE: this value is also used to construct the database DSN stored in the
+  # chart-managed Secret. If you use existingSecret for the postgres container,
+  # also set database.existingSecret with the full DSN so the password does not
+  # appear in values at all.
   password: justservice
+
+  # Reference a pre-existing K8s Secret for POSTGRES_PASSWORD in the StatefulSet.
+  # When set, postgresql.password above is still used to build the database DSN
+  # (stored in the chart-managed Secret) unless database.existingSecret is also set.
+  existingSecret:
+    name: ""
+    key: postgres-password
+
   database: justservice
   storage: 10Gi
   resources:
@@ -155,3 +194,23 @@ postgresql:
     limits:
       cpu: 500m
       memory: 512Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+
+# ---------- Pod security ----------
+# Applied to the API, web, and plugin pods.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]

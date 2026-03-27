@@ -1,0 +1,52 @@
+JustService has been deployed.
+
+== Secrets ==
+
+{{- if .Values.config.existingSecret.name }}
+JWT secret sourced from existing Secret "{{ .Values.config.existingSecret.name }}" (key: {{ .Values.config.existingSecret.key }}).
+{{- else if not .Values.config.jwtSecret }}
+WARNING: config.jwtSecret is empty. Set a strong secret (≥32 chars) before production use:
+
+  helm upgrade {{ .Release.Name }} <chart> --set config.jwtSecret=$(openssl rand -base64 48)
+
+Or create an external Secret and reference it:
+
+  kubectl create secret generic my-jwt-secret \
+    --from-literal=jwt-secret=$(openssl rand -base64 48)
+
+  helm upgrade {{ .Release.Name }} <chart> \
+    --set config.existingSecret.name=my-jwt-secret
+{{- else }}
+JWT secret is set via config.jwtSecret. For production, consider using config.existingSecret
+to reference a pre-existing Secret instead.
+{{- end }}
+
+== Database ==
+
+{{- if .Values.postgresql.enabled }}
+Bundled PostgreSQL is enabled (dev/single-node only).
+For production deployments, disable it and supply an external DSN:
+
+  helm upgrade {{ .Release.Name }} <chart> \
+    --set postgresql.enabled=false \
+    --set database.existingSecret.name=<secret-name>
+{{- else if .Values.database.existingSecret.name }}
+Database DSN sourced from existing Secret "{{ .Values.database.existingSecret.name }}" (key: {{ .Values.database.existingSecret.key }}).
+{{- else }}
+Database DSN sourced from database.dsn value. Consider using database.existingSecret instead.
+{{- end }}
+
+== Verify the deployment ==
+
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/component=api -n {{ .Release.Namespace }}
+
+{{- if .Values.ingress.enabled }}
+
+== Ingress ==
+
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- end }}

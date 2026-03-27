@@ -24,10 +24,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: api
           image: "{{ include "justservice.image" (dict "root" . "image" .Values.api.image) }}"
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           ports:
             - name: http
               containerPort: 8080
@@ -39,13 +43,23 @@ spec:
             - name: JUSTSERVICE_DATABASE_DSN
               valueFrom:
                 secretKeyRef:
+                  {{- if and (not .Values.postgresql.enabled) .Values.database.existingSecret.name }}
+                  name: {{ .Values.database.existingSecret.name }}
+                  key: {{ .Values.database.existingSecret.key | quote }}
+                  {{- else }}
                   name: {{ include "justservice.fullname" . }}-secret
                   key: database-dsn
+                  {{- end }}
             - name: JUSTSERVICE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.config.existingSecret.name }}
+                  name: {{ .Values.config.existingSecret.name }}
+                  key: {{ .Values.config.existingSecret.key | quote }}
+                  {{- else }}
                   name: {{ include "justservice.fullname" . }}-secret
                   key: jwt-secret
+                  {{- end }}
             - name: JUSTSERVICE_LOG_LEVEL
               valueFrom:
                 configMapKeyRef:
@@ -74,17 +88,25 @@ spec:
             {{- with .Values.api.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /api/health
               port: http
-            initialDelaySeconds: 10
             periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /api/health
               port: http
-            initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}

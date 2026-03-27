@@ -24,10 +24,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: web
           image: "{{ include "justservice.image" (dict "root" . "image" .Values.web.image) }}"
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           ports:
             - name: http
               containerPort: 3000
@@ -35,17 +39,25 @@ spec:
           env:
             - name: API_URL
               value: {{ include "justservice.apiHttpAddress" . | quote }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            failureThreshold: 24
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}

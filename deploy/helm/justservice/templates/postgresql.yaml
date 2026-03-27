@@ -41,14 +41,26 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: postgresql
     spec:
+      securityContext:
+        {{- toYaml .Values.postgresql.podSecurityContext | nindent 8 }}
       containers:
         - name: postgresql
           image: postgres:17-alpine
+          securityContext:
+            {{- toYaml .Values.postgresql.containerSecurityContext | nindent 12 }}
           env:
             - name: POSTGRES_USER
               value: {{ .Values.postgresql.username | quote }}
             - name: POSTGRES_PASSWORD
-              value: {{ .Values.postgresql.password | quote }}
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.postgresql.existingSecret.name }}
+                  name: {{ .Values.postgresql.existingSecret.name }}
+                  key: {{ .Values.postgresql.existingSecret.key | quote }}
+                  {{- else }}
+                  name: {{ include "justservice.fullname" . }}-secret
+                  key: postgres-password
+                  {{- end }}
             - name: POSTGRES_DB
               value: {{ .Values.postgresql.database | quote }}
             - name: PGDATA
@@ -58,14 +70,18 @@ spec:
               name: postgresql
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}]
+              command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}, "-d", {{ .Values.postgresql.database | quote }}]
             initialDelaySeconds: 10
             periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 5
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}]
+              command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}, "-d", {{ .Values.postgresql.database | quote }}]
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.postgresql.resources | nindent 12 }}
           volumeMounts:
