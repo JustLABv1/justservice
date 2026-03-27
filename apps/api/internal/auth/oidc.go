@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -108,4 +109,69 @@ func ValidateState(r *http.Request, state string) error {
 
 func decryptSecret(encrypted string) (string, error) {
 	return encrypted, nil
+}
+
+// resolveRoles extracts roles from raw OIDC claims using a dot-separated path
+// (e.g. "roles" or "realm_access.roles") and applies optional role_mappings.
+//
+// Behaviour:
+//   - If rolesClaim is empty, returns nil (caller uses default "user" role).
+//   - If the claim exists but is empty, returns nil (falls back to "user").
+//   - If roleMappings is non-empty, only OIDC roles that appear as keys are
+//     kept; unmapped roles are dropped.
+//   - If roleMappings is empty, OIDC role names are used as-is.
+func resolveRoles(claims map[string]any, rolesClaim string, roleMappings models.JSONB) []string {
+	if rolesClaim == "" {
+		return nil
+	}
+
+	// Navigate dot-separated path through the claims object.
+	parts := strings.Split(rolesClaim, ".")
+	var current any = claims
+	for _, part := range parts {
+		m, ok := current.(map[string]any)
+		if !ok {
+			return nil
+		}
+		current = m[part]
+	}
+
+	// Extract a string slice from whatever value we found.
+	var oidcRoles []string
+	switch v := current.(type) {
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				oidcRoles = append(oidcRoles, s)
+			}
+		}
+	case []string:
+		oidcRoles = append(oidcRoles, v...)
+	}
+
+	if len(oidcRoles) == 0 {
+		return nil
+	}
+
+	// Parse optional role_mappings JSON.
+	var mappings map[string]string
+	if len(roleMappings) > 0 {
+		_ = json.Unmarshal(roleMappings, &mappings)
+	}
+
+	if len(mappings) == 0 {
+		// No mappings configured: use OIDC role names as application role names.
+		return oidcRoles
+	}
+
+	// Apply mappings; drop unmapped roles.
+	seen := map[string]bool{}
+	var appRoles []string
+	for _, oidcRole := range oidcRoles {
+		if appRole, ok := mappings[oidcRole]; ok && !seen[appRole] {
+			seen[appRole] = true
+			appRoles = append(appRoles, appRole)
+		}
+	}
+	return appRoles
 }

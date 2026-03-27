@@ -155,8 +155,31 @@ plugins:
 | `config.oidc.existingProvidersSecret.name` | Pre-existing Secret with OIDC provider bootstrap JSON | `""` |
 | `config.oidc.existingProvidersSecret.key` | Key inside the OIDC providers Secret | `oidc-bootstrap-providers.json` |
 | `config.oidc.providers` | Inline OIDC provider list (dev only — avoid committing client secrets) | `[]` |
+| `config.oidc.providers[].roles_claim` | Dot-separated path in the ID token that holds the user's roles (e.g. `realm_access.roles` for Keycloak). Omit to keep default `"user"` role for all OIDC logins. | `""` |
+| `config.oidc.providers[].role_mappings` | Map of OIDC role name → application role name (e.g. `{"justservice-admin":"admin"}`). If empty, OIDC role names are used as-is. | `{}` |
 
-**Preferred OIDC setup:**
+**Preferred OIDC setup (with role sync):**
+```bash
+kubectl create secret generic justservice-oidc \
+  --from-literal=oidc-bootstrap-providers.json='[{
+    "name": "Keycloak",
+    "issuer_url": "https://sso.example.com/realms/justservice",
+    "client_id": "justservice",
+    "client_secret": "...",
+    "scopes": ["offline_access"],
+    "roles_claim": "realm_access.roles",
+    "role_mappings": {"justservice-admin": "admin", "justservice-user": "user"},
+    "enabled": true
+  }]'
+```
+```yaml
+config:
+  oidc:
+    existingProvidersSecret:
+      name: justservice-oidc
+```
+
+**Without role sync** (all OIDC users get the built-in `user` role):
 ```bash
 kubectl create secret generic justservice-oidc \
   --from-literal=oidc-bootstrap-providers.json='[{
@@ -167,12 +190,6 @@ kubectl create secret generic justservice-oidc \
     "scopes": ["offline_access"],
     "enabled": true
   }]'
-```
-```yaml
-config:
-  oidc:
-    existingProvidersSecret:
-      name: justservice-oidc
 ```
 
 ### Database

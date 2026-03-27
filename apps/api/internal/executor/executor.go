@@ -251,7 +251,7 @@ func (h *Handler) GetExecution(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ListExecutions(w http.ResponseWriter, r *http.Request) {
 	claims, _ := auth.GetClaims(r.Context())
 	userID, _ := uuid.Parse(claims.UserID)
-	var execs []models.Execution
+	execs := make([]models.Execution, 0)
 	if err := h.db.SelectContext(r.Context(), &execs, `
 		SELECT e.*, td.slug as task_slug, td.name as task_name
 		FROM executions e

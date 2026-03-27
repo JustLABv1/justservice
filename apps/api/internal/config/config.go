@@ -53,12 +53,20 @@ type OIDCConfig struct {
 }
 
 type OIDCProviderBootstrapConfig struct {
-	Name         string   `mapstructure:"name" json:"name"`
-	IssuerURL    string   `mapstructure:"issuer_url" json:"issuer_url"`
-	ClientID     string   `mapstructure:"client_id" json:"client_id"`
-	ClientSecret string   `mapstructure:"client_secret" json:"client_secret"`
-	Scopes       []string `mapstructure:"scopes" json:"scopes"`
-	Enabled      bool     `mapstructure:"enabled" json:"enabled"`
+	Name         string            `mapstructure:"name" json:"name"`
+	IssuerURL    string            `mapstructure:"issuer_url" json:"issuer_url"`
+	ClientID     string            `mapstructure:"client_id" json:"client_id"`
+	ClientSecret string            `mapstructure:"client_secret" json:"client_secret"`
+	Scopes       []string          `mapstructure:"scopes" json:"scopes"`
+	// RolesClaim is a dot-separated path into the ID token that holds the
+	// user's roles (e.g. "roles" or "realm_access.roles" for Keycloak).
+	// Leave empty to skip role syncing (users get the default "user" role).
+	RolesClaim   string            `mapstructure:"roles_claim" json:"roles_claim"`
+	// RoleMappings maps OIDC role names to application role names.
+	// e.g. {"keycloak-admin": "admin", "keycloak-user": "user"}
+	// If empty, OIDC role names are used as-is as application role names.
+	RoleMappings map[string]string `mapstructure:"role_mappings" json:"role_mappings"`
+	Enabled      bool              `mapstructure:"enabled" json:"enabled"`
 }
 
 func Load(configPath string) (*Config, error) {

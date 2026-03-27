@@ -71,7 +71,7 @@ func (h *Handler) ListExecutions(w http.ResponseWriter, r *http.Request) {
 		args = append(args, status)
 	}
 	query += " ORDER BY e.started_at DESC LIMIT 200"
-	var execs []models.Execution
+	execs := make([]models.Execution, 0)
 	if err := h.db.SelectContext(r.Context(), &execs, query, args...); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to list executions")
 		return
@@ -81,7 +81,7 @@ func (h *Handler) ListExecutions(w http.ResponseWriter, r *http.Request) {
 
 // ListUsers returns all users.
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
-	var users []models.User
+	users := make([]models.User, 0)
 	if err := h.db.SelectContext(r.Context(), &users, `SELECT * FROM users ORDER BY created_at DESC`); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to list users")
 		return
@@ -91,7 +91,7 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // ListPlugins returns all registered plugins.
 func (h *Handler) ListPlugins(w http.ResponseWriter, r *http.Request) {
-	var plugins []models.Plugin
+	plugins := make([]models.Plugin, 0)
 	if err := h.db.SelectContext(r.Context(), &plugins, `SELECT * FROM plugins ORDER BY registered_at DESC`); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to list plugins")
 		return
@@ -116,7 +116,7 @@ func (h *Handler) DeregisterPlugin(w http.ResponseWriter, r *http.Request) {
 
 // ListRoles returns all roles.
 func (h *Handler) ListRoles(w http.ResponseWriter, r *http.Request) {
-	var roles []models.Role
+	roles := make([]models.Role, 0)
 	if err := h.db.SelectContext(r.Context(), &roles, `SELECT * FROM roles ORDER BY name`); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to list roles")
 		return
@@ -126,7 +126,7 @@ func (h *Handler) ListRoles(w http.ResponseWriter, r *http.Request) {
 
 // ListPermissions returns all permissions.
 func (h *Handler) ListPermissions(w http.ResponseWriter, r *http.Request) {
-	var perms []models.Permission
+	perms := make([]models.Permission, 0)
 	if err := h.db.SelectContext(r.Context(), &perms, `SELECT * FROM permissions ORDER BY resource, action`); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to list permissions")
 		return
@@ -136,7 +136,7 @@ func (h *Handler) ListPermissions(w http.ResponseWriter, r *http.Request) {
 
 // ListOIDCProviders returns configured OIDC providers (admin view with full config).
 func (h *Handler) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
-	var providers []models.OIDCProvider
+	providers := make([]models.OIDCProvider, 0)
 	if err := h.db.SelectContext(r.Context(), &providers, `SELECT * FROM oidc_providers ORDER BY name`); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to list OIDC providers")
 		return
@@ -147,24 +147,34 @@ func (h *Handler) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
 // CreateOIDCProvider adds a new OIDC provider.
 func (h *Handler) CreateOIDCProvider(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name         string   `json:"name"`
-		IssuerURL    string   `json:"issuer_url"`
-		ClientID     string   `json:"client_id"`
-		ClientSecret string   `json:"client_secret"`
-		Scopes       []string `json:"scopes"`
-		Enabled      bool     `json:"enabled"`
+		Name         string            `json:"name"`
+		IssuerURL    string            `json:"issuer_url"`
+		ClientID     string            `json:"client_id"`
+		ClientSecret string            `json:"client_secret"`
+		Scopes       []string          `json:"scopes"`
+		// RolesClaim is a dot-separated path into the ID token (e.g. "roles"
+		// or "realm_access.roles" for Keycloak). Leave empty to skip role sync.
+		RolesClaim   string            `json:"roles_claim"`
+		// RoleMappings maps OIDC role names → application role names.
+		// e.g. {"keycloak-admin":"admin","keycloak-user":"user"}
+		RoleMappings map[string]string `json:"role_mappings"`
+		Enabled      bool              `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respond.Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	scopesJSON, _ := json.Marshal(body.Scopes)
+	roleMappingsJSON, _ := json.Marshal(body.RoleMappings)
+	if body.RoleMappings == nil {
+		roleMappingsJSON = []byte("{}")
+	}
 	var id uuid.UUID
 	err := h.db.GetContext(r.Context(), &id, `
-		INSERT INTO oidc_providers (id, name, issuer_url, client_id, client_secret_encrypted, scopes, enabled)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO oidc_providers (id, name, issuer_url, client_id, client_secret_encrypted, scopes, roles_claim, role_mappings, enabled)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
-	`, uuid.New(), body.Name, body.IssuerURL, body.ClientID, body.ClientSecret, string(scopesJSON), body.Enabled)
+	`, uuid.New(), body.Name, body.IssuerURL, body.ClientID, body.ClientSecret, string(scopesJSON), body.RolesClaim, string(roleMappingsJSON), body.Enabled)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "failed to create provider")
 		return
@@ -174,7 +184,7 @@ func (h *Handler) CreateOIDCProvider(w http.ResponseWriter, r *http.Request) {
 
 // AuditLog returns recent audit log entries.
 func (h *Handler) AuditLog(w http.ResponseWriter, r *http.Request) {
-	var entries []models.AuditLog
+	entries := make([]models.AuditLog, 0)
 	if err := h.db.SelectContext(r.Context(), &entries, `
 		SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 500
 	`); err != nil {

@@ -221,25 +221,36 @@ func (h *Handler) OIDCCallback(w http.ResponseWriter, r *http.Request) {
 		redirectOIDCError(w, r, next, "OIDC authentication failed")
 		return
 	}
-	var stdClaims struct {
-		Subject           string `json:"sub"`
-		Email             string `json:"email"`
-		PreferredUsername string `json:"preferred_username"`
-		Name              string `json:"name"`
-	}
-	if err := idToken.Claims(&stdClaims); err != nil {
+	// Parse all claims at once so we can read both standard and role claims.
+	var allClaims map[string]any
+	if err := idToken.Claims(&allClaims); err != nil {
 		clearOIDCCookies(w)
 		redirectOIDCError(w, r, next, "failed to parse OIDC claims")
 		return
 	}
-	username := stdClaims.PreferredUsername
+	sub, _ := allClaims["sub"].(string)
+	email, _ := allClaims["email"].(string)
+	username, _ := allClaims["preferred_username"].(string)
 	if username == "" {
-		username = stdClaims.Name
+		username, _ = allClaims["name"].(string)
 	}
 	if username == "" {
-		username = stdClaims.Email
+		username = email
 	}
-	user, err := h.svc.UpsertOIDCUser(r.Context(), stdClaims.Subject, p.model.IssuerURL, stdClaims.Email, username)
+
+	// Resolve application roles from OIDC token when a roles_claim is configured.
+	var rolesToSync []string
+	if p.model.RolesClaim != "" {
+		rolesToSync = resolveRoles(allClaims, p.model.RolesClaim, p.model.RoleMappings)
+		if rolesToSync == nil {
+			// Claim configured but nothing matched — treat as empty sync so
+			// the user still gets a safe fallback ("user") rather than keeping
+			// whatever roles they had before.
+			rolesToSync = []string{}
+		}
+	}
+
+	user, err := h.svc.UpsertOIDCUser(r.Context(), sub, p.model.IssuerURL, email, username, rolesToSync)
 	if err != nil {
 		log.Error().Err(err).Msg("upsert OIDC user")
 		clearOIDCCookies(w)

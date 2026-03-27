@@ -62,4 +62,16 @@ oidc:
   #     client_secret: "CHANGE_ME"
   #     scopes:
   #       - "offline_access"
+  #     # Optional: sync application roles from the OIDC token.
+  #     # roles_claim is a dot-separated path in the ID token that contains the
+  #     # user's roles. Common values:
+  #     #   "roles"                  — a top-level string array
+  #     #   "realm_access.roles"     — Keycloak realm roles
+  #     # Leave empty (or omit) to skip role syncing; users always get "user".
+  #     roles_claim: "realm_access.roles"
+  #     # role_mappings translates OIDC role names to application role names.
+  #     # Unmapped roles are dropped. If empty, OIDC names are used as-is.
+  #     role_mappings:
+  #       justservice-admin: "admin"
+  #       justservice-user: "user"
   #     enabled: true

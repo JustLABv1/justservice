@@ -162,7 +162,11 @@ func (s *Service) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, 
 	return &user, nil
 }
 
-func (s *Service) UpsertOIDCUser(ctx context.Context, subject, issuer, email, username string) (*models.User, error) {
+// UpsertOIDCUser creates or updates a user identified by their OIDC subject +
+// issuer pair. When rolesToSync is non-nil the user's roles are replaced with
+// the supplied list (use an empty slice to strip all roles). When rolesToSync
+// is nil the legacy behaviour applies: ensure the "user" role is present.
+func (s *Service) UpsertOIDCUser(ctx context.Context, subject, issuer, email, username string, rolesToSync []string) (*models.User, error) {
 	var user models.User
 	err := s.db.GetContext(ctx, &user, `
 		INSERT INTO users (id, username, email, oidc_subject, oidc_issuer)
@@ -174,10 +178,31 @@ func (s *Service) UpsertOIDCUser(ctx context.Context, subject, issuer, email, us
 	if err != nil {
 		return nil, fmt.Errorf("upsert oidc user: %w", err)
 	}
-	var roleID uuid.UUID
-	if err := s.db.GetContext(ctx, &roleID, `SELECT id FROM roles WHERE name = 'user'`); err == nil {
-		_ = s.rbac.AssignRole(ctx, user.ID, roleID)
+
+	if rolesToSync != nil {
+		// Full sync: replace the user's current roles with whatever the OIDC
+		// provider says. Fall back to "user" if the resolved list is empty so
+		// nobody ends up role-less.
+		if len(rolesToSync) == 0 {
+			rolesToSync = []string{"user"}
+		}
+		_, _ = s.db.ExecContext(ctx, `DELETE FROM user_roles WHERE user_id = $1`, user.ID)
+		for _, name := range rolesToSync {
+			var roleID uuid.UUID
+			if err := s.db.GetContext(ctx, &roleID, `SELECT id FROM roles WHERE name = $1`, name); err == nil {
+				_ = s.rbac.AssignRole(ctx, user.ID, roleID)
+			} else {
+				log.Warn().Str("role", name).Msg("OIDC role not found in database, skipping")
+			}
+		}
+	} else {
+		// Legacy: just ensure the base "user" role is present.
+		var roleID uuid.UUID
+		if err := s.db.GetContext(ctx, &roleID, `SELECT id FROM roles WHERE name = 'user'`); err == nil {
+			_ = s.rbac.AssignRole(ctx, user.ID, roleID)
+		}
 	}
+
 	return &user, nil
 }
 

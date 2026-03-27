@@ -178,8 +178,16 @@ type OIDCProvider struct {
 	ClientID              string          `db:"client_id" json:"client_id"`
 	ClientSecretEncrypted string          `db:"client_secret_encrypted" json:"-"`
 	Scopes                JSONStringSlice `db:"scopes" json:"scopes"`
-	Enabled               bool            `db:"enabled" json:"enabled"`
-	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
+	// RolesClaim is a dot-separated path into the ID token claims that holds
+	// the user's roles (e.g. "roles" or "realm_access.roles" for Keycloak).
+	// Leave empty to skip role syncing (users get the default "user" role).
+	RolesClaim   string `db:"roles_claim" json:"roles_claim"`
+	// RoleMappings maps OIDC role names to application role names.
+	// e.g. {"keycloak-admin": "admin", "keycloak-user": "user"}
+	// If empty, OIDC role names are used as-is as application role names.
+	RoleMappings JSONB  `db:"role_mappings" json:"role_mappings"`
+	Enabled      bool   `db:"enabled" json:"enabled"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
 // AuditLog records all significant actions.

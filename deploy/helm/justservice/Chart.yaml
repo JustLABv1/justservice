@@ -2,7 +2,7 @@ apiVersion: v2
 name: justservice
 description: JustService — self-service task portal with plugin-based execution
 type: application
-version: 0.4.2
+version: 0.5.0
 appVersion: "latest"
 keywords:
   - justservice

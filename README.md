@@ -122,6 +122,8 @@ All options can be set via `apps/api/config.yaml` **or** as environment variable
 | `log.level` | `JUSTSERVICE_LOG_LEVEL` | `info` | `debug` \| `info` \| `warn` \| `error` |
 | `log.format` | `JUSTSERVICE_LOG_FORMAT` | `json` | `json` \| `console` |
 | `oidc.public_base_url` | `JUSTSERVICE_OIDC_PUBLIC_BASE_URL` | `""` | Public browser-facing base URL used for OIDC callback URLs |
+| `oidc.bootstrap_providers[].roles_claim` | — | `""` | Dot-separated ID token path for roles (e.g. `realm_access.roles`). Empty = no role sync. |
+| `oidc.bootstrap_providers[].role_mappings` | — | `{}` | Map of OIDC role → app role name. Empty = use OIDC names as-is. |
 
 Frontend runtime variable:
 
@@ -144,7 +146,7 @@ Users are created by an admin in the admin panel (or via `/register`). Passwords
 
 ### OIDC federation
 
-OIDC providers (e.g. Google, Okta, Keycloak, Azure AD) are stored in the database and loaded at startup. There are now two supported ways to manage them:
+OIDC providers (e.g. Google, Okta, Keycloak, Azure AD) are stored in the database and loaded at startup. There are two supported ways to manage them:
 
 - Configure providers through the admin API/UI.
 - Bootstrap providers declaratively at API startup with `oidc.bootstrap_providers` or `JUSTSERVICE_OIDC_BOOTSTRAP_PROVIDERS_JSON`.
@@ -154,6 +156,35 @@ When the Next.js web app fronts the API, set `oidc.public_base_url` to the web o
 Helm exposes this under `config.oidc.publicBaseUrl`. For bootstrap data, prefer `config.oidc.existingProvidersSecret` so the provider JSON, including `client_secret`, comes from an existing Kubernetes Secret rather than committed chart values. `config.oidc.providers` remains available for local or ephemeral environments, but it is not a good place to commit production secrets.
 
 When using `existingProvidersSecret`, create a Secret whose `oidc-bootstrap-providers.json` value is a JSON array of provider objects. The API reads that through `JUSTSERVICE_OIDC_BOOTSTRAP_PROVIDERS_JSON`, and provider entries are still upserted by name on startup.
+
+#### Role sync from OIDC claims
+
+Each provider can optionally sync application roles from the ID token on every login. This lets your IdP (e.g. Keycloak) be the authoritative source of who is an admin.
+
+| Field | Type | Description |
+|---|---|---|
+| `roles_claim` | string | Dot-separated path in the ID token that holds the user's roles. Use `roles` for a top-level array or `realm_access.roles` for Keycloak realm roles. Leave empty to skip role sync. |
+| `role_mappings` | map | OIDC role name → application role name. Unmapped roles are dropped. If empty, OIDC names are used directly (they must match role names in the database). |
+
+When `roles_claim` is set, the user's application roles are **replaced** on every login with whatever the token contains. This means removing a user from a Keycloak group immediately takes effect on their next sign-in. If the claim resolves to an empty list, the user falls back to the built-in `"user"` role.
+
+Example `config.yaml` bootstrap entry for Keycloak:
+
+```yaml
+oidc:
+  bootstrap_providers:
+    - name: "Keycloak"
+      issuer_url: "https://sso.example.com/realms/justservice"
+      client_id: "justservice"
+      client_secret: "CHANGE_ME"
+      scopes:
+        - "offline_access"
+      roles_claim: "realm_access.roles"
+      role_mappings:
+        justservice-admin: "admin"
+        justservice-user: "user"
+      enabled: true
+```
 
 ---
 

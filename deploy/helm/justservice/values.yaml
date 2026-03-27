@@ -145,7 +145,7 @@ config:
     # Optional inline provider bootstrap for local/dev use. Avoid committing
     # client secrets here; use existingProvidersSecret instead.
     providers: []
-    # Example:
+    # Example (with role sync):
     # providers:
     #   - name: Keycloak
     #     issuer_url: https://sso.example.com/realms/justservice
@@ -153,10 +153,30 @@ config:
     #     client_secret: change-me
     #     scopes:
     #       - offline_access
+    #     # Optional: dot-separated path in the ID token that holds the user's
+    #     # roles. Common values:
+    #     #   roles                — top-level string array
+    #     #   realm_access.roles   — Keycloak realm roles
+    #     # Omit or leave empty to skip role syncing (users always get "user").
+    #     roles_claim: realm_access.roles
+    #     # Optional: map OIDC role names → application role names.
+    #     # Unmapped roles are dropped. If omitted, OIDC names are used as-is.
+    #     role_mappings:
+    #       justservice-admin: admin
+    #       justservice-user: user
     #     enabled: true
-    # Example external secret:
+    # Example external secret (JSON array, same fields apply):
     # kubectl create secret generic justservice-oidc \
-    #   --from-literal=oidc-bootstrap-providers.json='[{"name":"Keycloak","issuer_url":"https://sso.example.com/realms/justservice","client_id":"justservice","client_secret":"...","scopes":["offline_access"],"enabled":true}]'
+    #   --from-literal=oidc-bootstrap-providers.json='[{
+    #     "name":"Keycloak",
+    #     "issuer_url":"https://sso.example.com/realms/justservice",
+    #     "client_id":"justservice",
+    #     "client_secret":"...",
+    #     "scopes":["offline_access"],
+    #     "roles_claim":"realm_access.roles",
+    #     "role_mappings":{"justservice-admin":"admin","justservice-user":"user"},
+    #     "enabled":true
+    #   }]'
 
 # ---------- Database ----------
 # Only required when postgresql.enabled = false.
