@@ -1,0 +1,81 @@
+name: Chart Release
+
+on:
+  push:
+    tags:
+      - "chart/v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Chart version to release (e.g. 0.3.0)"
+        required: true
+      app_version:
+        description: "appVersion to embed in the chart (e.g. 1.2.3 or latest)"
+        required: false
+        default: "latest"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  chart-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive version metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            chart_version="${{ github.event.inputs.version }}"
+            app_version="${{ github.event.inputs.app_version }}"
+          else
+            # tag: chart/v0.3.0 → 0.3.0
+            chart_version="${GITHUB_REF_NAME#chart/v}"
+            app_version="latest"
+          fi
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "chart_version=$chart_version" >> "$GITHUB_OUTPUT"
+          echo "app_version=$app_version"     >> "$GITHUB_OUTPUT"
+          echo "owner=$owner"                 >> "$GITHUB_OUTPUT"
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.1.3
+
+      - name: Lint chart
+        run: |
+          helm lint deploy/helm/justservice \
+            --set config.jwtSecret=release-secret-placeholder-32-chars
+
+      - name: Login to GHCR
+        shell: bash
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Package chart
+        run: |
+          helm package deploy/helm/justservice \
+            --version "${{ steps.meta.outputs.chart_version }}" \
+            --app-version "${{ steps.meta.outputs.app_version }}"
+
+      - name: Push chart to GHCR OCI registry
+        run: |
+          helm push justservice-${{ steps.meta.outputs.chart_version }}.tgz \
+            oci://ghcr.io/${{ steps.meta.outputs.owner }}/charts
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME:-chart/v${{ steps.meta.outputs.chart_version }}}"
+          gh release create "$tag" \
+            "justservice-${{ steps.meta.outputs.chart_version }}.tgz" \
+            --title "Chart v${{ steps.meta.outputs.chart_version }}" \
+            --generate-notes
