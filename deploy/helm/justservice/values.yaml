@@ -13,7 +13,7 @@ imagePullSecrets: []
 api:
   image:
     registry: ghcr.io
-    repository: justlab/justservice/api
+    repository: justlabv1/justservice/api
     tag: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
@@ -37,7 +37,7 @@ api:
 web:
   image:
     registry: ghcr.io
-    repository: justlab/justservice/web
+    repository: justlabv1/justservice/web
     tag: ""
     pullPolicy: IfNotPresent
   replicaCount: 1
@@ -58,7 +58,7 @@ plugins:
     enabled: false
     image:
       registry: ghcr.io
-      repository: justlab/justservice/plugin-garage
+      repository: justlabv1/justservice/plugin-garage
       tag: ""
       pullPolicy: IfNotPresent
     replicaCount: 1

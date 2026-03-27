@@ -11,7 +11,7 @@ Self-service task execution portal with plugin-based execution. Deploys the API 
 ## Install
 
 ```bash
-helm install justservice oci://ghcr.io/justlab/charts/justservice \
+helm install justservice oci://ghcr.io/justlabv1/charts/justservice \
   --set config.jwtSecret=$(openssl rand -base64 48) \
   --set config.oidc.publicBaseUrl=https://justservice.example.com \
   --set ingress.hosts[0].host=justservice.example.com
@@ -20,7 +20,7 @@ helm install justservice oci://ghcr.io/justlab/charts/justservice \
 Pin to a specific chart version:
 
 ```bash
-helm install justservice oci://ghcr.io/justlab/charts/justservice --version 0.2.0 \
+helm install justservice oci://ghcr.io/justlabv1/charts/justservice --version 0.2.0 \
   --set config.jwtSecret=$(openssl rand -base64 48) \
   --set config.oidc.publicBaseUrl=https://justservice.example.com \
   --set ingress.hosts[0].host=justservice.example.com
@@ -37,7 +37,7 @@ kubectl create secret generic justservice-db \
   --from-literal=database-dsn='postgres://user:pass@host:5432/justservice?sslmode=require'
 
 # 2. Install without any secrets in values
-helm install justservice oci://ghcr.io/justlab/charts/justservice \
+helm install justservice oci://ghcr.io/justlabv1/charts/justservice \
   --set config.existingSecret.name=justservice-jwt \
   --set config.oidc.publicBaseUrl=https://justservice.example.com \
   --set postgresql.enabled=false \
@@ -63,7 +63,7 @@ helm install justservice oci://ghcr.io/justlab/charts/justservice \
 | Key | Description | Default |
 |-----|-------------|---------|
 | `api.image.registry` | Image registry | `ghcr.io` |
-| `api.image.repository` | Image repository | `justlab/justservice/api` |
+| `api.image.repository` | Image repository | `justlabv1/justservice/api` |
 | `api.image.tag` | Image tag (defaults to `Chart.appVersion`) | `""` |
 | `api.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `api.replicaCount` | Number of API replicas | `1` |
@@ -78,7 +78,7 @@ helm install justservice oci://ghcr.io/justlab/charts/justservice \
 | Key | Description | Default |
 |-----|-------------|---------|
 | `web.image.registry` | Image registry | `ghcr.io` |
-| `web.image.repository` | Image repository | `justlab/justservice/web` |
+| `web.image.repository` | Image repository | `justlabv1/justservice/web` |
 | `web.image.tag` | Image tag (defaults to `Chart.appVersion`) | `""` |
 | `web.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `web.replicaCount` | Number of web replicas | `1` |
