@@ -11,7 +11,16 @@ Self-service task execution portal with plugin-based execution. Deploys the API 
 ## Install
 
 ```bash
-helm install justservice ./deploy/helm/justservice \
+helm install justservice oci://ghcr.io/justlab/charts/justservice \
+  --set config.jwtSecret=$(openssl rand -base64 48) \
+  --set config.oidc.publicBaseUrl=https://justservice.example.com \
+  --set ingress.hosts[0].host=justservice.example.com
+```
+
+Pin to a specific chart version:
+
+```bash
+helm install justservice oci://ghcr.io/justlab/charts/justservice --version 0.2.0 \
   --set config.jwtSecret=$(openssl rand -base64 48) \
   --set config.oidc.publicBaseUrl=https://justservice.example.com \
   --set ingress.hosts[0].host=justservice.example.com
@@ -28,7 +37,7 @@ kubectl create secret generic justservice-db \
   --from-literal=database-dsn='postgres://user:pass@host:5432/justservice?sslmode=require'
 
 # 2. Install without any secrets in values
-helm install justservice ./deploy/helm/justservice \
+helm install justservice oci://ghcr.io/justlab/charts/justservice \
   --set config.existingSecret.name=justservice-jwt \
   --set config.oidc.publicBaseUrl=https://justservice.example.com \
   --set postgresql.enabled=false \
