@@ -72,7 +72,7 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("database.conn_max_lifetime", "5m")
 	v.SetDefault("database.migrations_path", "file://migrations")
 	v.SetDefault("jwt.access_token_ttl", "15m")
-	v.SetDefault("jwt.refresh_token_ttl", "7d")
+	v.SetDefault("jwt.refresh_token_ttl", "168h")
 	v.SetDefault("grpc.host", "0.0.0.0")
 	v.SetDefault("grpc.port", 9090)
 	v.SetDefault("log.level", "info")
