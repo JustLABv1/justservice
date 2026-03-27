@@ -156,38 +156,55 @@ config:
 
 ### Database
 
+> **When `postgresql.enabled=true` (the default), the database DSN is built automatically — no `database.*` configuration is needed.**
+
+The `database.*` values are only relevant when connecting to an external database (`postgresql.enabled=false`).
+
 | Key | Description | Default |
 |-----|-------------|---------|
-| `database.dsn` | Full PostgreSQL DSN. Required when `postgresql.enabled=false` and `database.existingSecret.name` is empty. | `""` |
-| `database.existingSecret.name` | Pre-existing Secret containing the database DSN. When set, `database.dsn` is ignored. | `""` |
+| `database.dsn` | Full PostgreSQL DSN for an external database. | `""` |
+| `database.existingSecret.name` | Pre-existing Secret containing the full DSN. When set, `database.dsn` is ignored. | `""` |
 | `database.existingSecret.key` | Key inside the database Secret | `database-dsn` |
 
 ### Bundled PostgreSQL
 
-Suitable for development and single-node deployments only. Set `postgresql.enabled=false` and configure `database.existingSecret` for production.
+When `postgresql.enabled=true` the chart automatically constructs the database DSN from the values below and stores it in the chart-managed Secret. No `database.*` config is required.
+
+For production use an external database: set `postgresql.enabled=false` and provide `database.dsn` or `database.existingSecret`.
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `postgresql.enabled` | Deploy bundled PostgreSQL StatefulSet | `true` |
+| `postgresql.enabled` | Deploy bundled PostgreSQL StatefulSet and auto-build DSN | `true` |
 | `postgresql.username` | Database user | `justservice` |
-| `postgresql.password` | Database password (used when `postgresql.existingSecret.name` is empty). Also used to build the DSN stored in the chart Secret — see note below. | `justservice` |
-| `postgresql.existingSecret.name` | Pre-existing Secret for `POSTGRES_PASSWORD` in the StatefulSet. | `""` |
-| `postgresql.existingSecret.key` | Key inside the postgresql Secret | `postgres-password` |
+| `postgresql.password` | Database password. Used when `postgresql.existingSecret.name` is empty. | `justservice` |
+| `postgresql.existingSecret.name` | Pre-existing Secret for `POSTGRES_PASSWORD`. When set, `postgresql.password` is ignored by the StatefulSet. Must be combined with `database.existingSecret` — see note below. | `""` |
+| `postgresql.existingSecret.key` | Key inside the Secret | `postgres-password` |
 | `postgresql.database` | Database name | `justservice` |
 | `postgresql.storage` | PVC size | `10Gi` |
 | `postgresql.resources` | CPU/memory requests and limits | see `values.yaml` |
 | `postgresql.podSecurityContext` | Pod security context for the PostgreSQL pod | `runAsNonRoot: true, runAsUser: 999, fsGroup: 999` |
 | `postgresql.containerSecurityContext` | Container security context for PostgreSQL | `allowPrivilegeEscalation: false, capabilities.drop: [ALL]` |
 
-> **Note:** When `postgresql.existingSecret.name` is set, `postgresql.password` is still used to construct the database DSN written to the chart-managed Secret (unless `database.existingSecret.name` is also set). For a fully secret-free values file when using bundled postgres, set both `postgresql.existingSecret` **and** `database.existingSecret` with the pre-built DSN.
-
 ## Secrets management summary
 
-| Secret | Inline value | External Secret |
-|--------|-------------|-----------------|
-| JWT signing key | `config.jwtSecret` | `config.existingSecret` |
-| Database DSN | `database.dsn` | `database.existingSecret` |
-| PostgreSQL password | `postgresql.password` | `postgresql.existingSecret` |
-| OIDC providers | `config.oidc.providers` | `config.oidc.existingProvidersSecret` |
+| Secret | Auto-managed | Inline value | External Secret |
+|--------|-------------|--------------|-----------------|
+| JWT signing key | — | `config.jwtSecret` | `config.existingSecret` |
+| Database DSN | ✓ when `postgresql.enabled=true` | `database.dsn` | `database.existingSecret` |
+| PostgreSQL password | ✓ when no `existingSecret` | `postgresql.password` | `postgresql.existingSecret` |
+| OIDC providers | — | `config.oidc.providers` | `config.oidc.existingProvidersSecret` |
 
-All four support the same pattern: set `existingSecret.name` to skip writing that credential into the chart-managed Secret and reference your own K8s Secret instead.
+> **Note on `postgresql.existingSecret`:** Helm templates cannot read Kubernetes Secret values, so when you use an external Secret for the postgres password, the DSN cannot be auto-built. You must also set `database.existingSecret` pointing to a Secret that contains the full pre-built DSN. The simplest approach is one Secret with two keys:
+> ```bash
+> kubectl create secret generic justservice-pg \
+>   --from-literal=postgres-password=mypass \
+>   --from-literal=database-dsn='postgres://justservice:mypass@<release>-justservice-postgresql:5432/justservice?sslmode=disable'
+> ```
+> ```yaml
+> postgresql:
+>   existingSecret:
+>     name: justservice-pg
+> database:
+>   existingSecret:
+>     name: justservice-pg
+> ```

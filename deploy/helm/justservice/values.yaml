@@ -150,12 +150,14 @@ config:
     #   --from-literal=oidc-bootstrap-providers.json='[{"name":"Keycloak","issuer_url":"https://sso.example.com/realms/justservice","client_id":"justservice","client_secret":"...","scopes":["offline_access"],"enabled":true}]'
 
 # ---------- Database ----------
+# Only required when postgresql.enabled = false.
+# When postgresql.enabled = true the DSN is built automatically from the
+# postgresql.* values below — no database.* configuration is needed.
 database:
-  # Full PostgreSQL DSN. Required when postgresql.enabled = false and
-  # database.existingSecret.name is not set.
+  # Full PostgreSQL DSN for an external database.
   dsn: ""
 
-  # Reference a pre-existing K8s Secret that contains the full database DSN.
+  # Reference a pre-existing K8s Secret containing the full DSN.
   # When set, database.dsn above is ignored.
   #
   # Example:
@@ -167,20 +169,28 @@ database:
 
 # ---------- Bundled PostgreSQL ----------
 # Suitable for development and single-node setups.
-# For production: set enabled: false and supply database.dsn or database.existingSecret.
+# When enabled, the database DSN is constructed automatically from the values
+# below and stored in the chart-managed Secret — no database.* config needed.
+# For production: set enabled: false and configure database.dsn or database.existingSecret.
 postgresql:
   enabled: true
   username: justservice
-  # Password used when existingSecret.name is empty.
-  # NOTE: this value is also used to construct the database DSN stored in the
-  # chart-managed Secret. If you use existingSecret for the postgres container,
-  # also set database.existingSecret with the full DSN so the password does not
-  # appear in values at all.
+  # Password for the PostgreSQL user. Used when existingSecret.name is empty.
   password: justservice
 
-  # Reference a pre-existing K8s Secret for POSTGRES_PASSWORD in the StatefulSet.
-  # When set, postgresql.password above is still used to build the database DSN
-  # (stored in the chart-managed Secret) unless database.existingSecret is also set.
+  # Reference a pre-existing Secret for the PostgreSQL password.
+  # When set, postgresql.password above is ignored by the StatefulSet.
+  # Because Helm cannot read Secret values, you must ALSO set
+  # database.existingSecret so the DSN can be supplied externally.
+  #
+  # Example — one Secret, two keys:
+  #   kubectl create secret generic justservice-pg \
+  #     --from-literal=postgres-password=mypass \
+  #     --from-literal=database-dsn='postgres://justservice:mypass@<release>-justservice-postgresql:5432/justservice?sslmode=disable'
+  #
+  # Then set:
+  #   postgresql.existingSecret.name: justservice-pg
+  #   database.existingSecret.name:   justservice-pg
   existingSecret:
     name: ""
     key: postgres-password

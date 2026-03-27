@@ -7,6 +7,7 @@ const workspaceRoot = path.resolve(projectRoot, "../..")
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  outputFileTracingRoot: workspaceRoot,
   turbopack: {
     root: workspaceRoot,
   },
