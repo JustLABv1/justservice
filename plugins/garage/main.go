@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -83,10 +86,23 @@ type garageClient struct {
 }
 
 func newGarageClient(baseURL, token string) *garageClient {
+	transport := http.DefaultTransport
+	if caFile := strings.TrimSpace(os.Getenv("GARAGE_EXTRA_CA_CERT")); caFile != "" {
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			pool = x509.NewCertPool()
+		}
+		if pem, err := os.ReadFile(caFile); err == nil {
+			pool.AppendCertsFromPEM(pem)
+		} else {
+			log.Printf("[garage] warning: could not read GARAGE_EXTRA_CA_CERT %q: %v", caFile, err)
+		}
+		transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
+	}
 	return &garageClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
-		http:    &http.Client{Timeout: 30 * time.Second},
+		http:    &http.Client{Timeout: 30 * time.Second, Transport: transport},
 	}
 }
 
