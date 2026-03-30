@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Clock,
   Copy,
+  EyeOff,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -71,6 +72,15 @@ function isSensitiveKey(key: string) {
     normalized.endsWith("privatekey") ||
     normalized === "authorization"
   )
+}
+
+function hasSensitiveFields(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (isSensitiveKey(key)) return true
+    if (hasSensitiveFields(val)) return true
+  }
+  return false
 }
 
 function redactSensitiveFields(value: unknown): unknown {
@@ -318,6 +328,12 @@ export function ExecutionDetail({ executionId, embedded, onTitleResolved }: Exec
                   <CopyButton text={formatPayload(execution.output, true)} />
                 </div>
               </div>
+              {hasSensitiveFields(execution.output) && (
+                <p className="flex items-center gap-1.5 text-xs text-muted">
+                  <EyeOff className="size-3 shrink-0" />
+                  Sensitive fields are redacted in this view. They were visible immediately after execution.
+                </p>
+              )}
             </Section>
           )}
 

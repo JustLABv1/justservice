@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowUpRight, Check, CheckCircle, Copy, Loader2, Play, RotateCcw, XCircle } from "lucide-react"
+import { AlertTriangle, ArrowUpRight, Check, CheckCircle, Copy, Loader2, Play, RotateCcw, XCircle } from "lucide-react"
 import { toast } from "@heroui/react"
 
 import { Button, Chip, Description, Input, Label, Separator, Switch } from "@heroui/react"
@@ -27,6 +27,132 @@ function normalizeSchema(input: unknown): JsonSchema {
     }
   }
   return input && typeof input === "object" ? (input as JsonSchema) : {}
+}
+
+function isCredentialField(key: string) {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "")
+  return (
+    normalized.includes("secret") ||
+    normalized.endsWith("password") ||
+    normalized.endsWith("token") ||
+    normalized.endsWith("apikey") ||
+    normalized.endsWith("privatekey") ||
+    normalized === "authorization" ||
+    normalized.endsWith("keyid")
+  )
+}
+
+function isSensitiveKey(key: string) {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "")
+  return (
+    normalized.includes("secret") ||
+    normalized.endsWith("password") ||
+    normalized.endsWith("token") ||
+    normalized.endsWith("apikey") ||
+    normalized.endsWith("privatekey") ||
+    normalized === "authorization"
+  )
+}
+
+function collectSecretValues(value: unknown, out: string[] = []): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return out
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (isSensitiveKey(key) && typeof val === "string" && val) {
+      out.push(val)
+    } else {
+      collectSecretValues(val, out)
+    }
+  }
+  return out
+}
+
+function redactSensitiveFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactSensitiveFields)
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        isSensitiveKey(key) ? "[REDACTED]" : redactSensitiveFields(item),
+      ])
+    )
+  }
+  return value
+}
+
+function redactOutputJson(output: unknown): string {
+  const secrets = collectSecretValues(output)
+  let json = JSON.stringify(redactSensitiveFields(output), null, 2)
+  for (const secret of secrets) {
+    if (!secret) continue
+    // Match the JSON-encoded form of the secret (without surrounding quotes) so
+    // that special characters (backslashes, unicode escapes, etc.) are handled
+    // correctly — this also catches the value embedded inside array strings.
+    const jsonEncoded = JSON.stringify(secret).slice(1, -1)
+    json = json.split(jsonEncoded).join("[REDACTED]")
+  }
+  return json
+}
+
+function extractSensitiveFields(
+  value: unknown,
+  label = ""
+): { label: string; value: string }[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return []
+  const results: { label: string; value: string }[] = []
+  for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+    if (isCredentialField(key) && typeof val === "string") {
+      results.push({ label: label ? `${label} › ${key}` : key, value: val })
+    } else if (val && typeof val === "object" && !Array.isArray(val)) {
+      results.push(...extractSensitiveFields(val, label ? `${label} › ${key}` : key))
+    }
+  }
+  return results
+}
+
+function SensitiveCredentials({ fields }: { fields: { label: string; value: string }[] }) {
+  const [copied, setCopied] = useState<string | null>(null)
+
+  function copy(value: string, label: string) {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(label)
+      setTimeout(() => setCopied(null), 2000)
+    })
+  }
+
+  return (
+    <div className="rounded-lg border border-warning/40 bg-warning/5 p-4 flex flex-col gap-3">
+      <div className="flex items-center gap-2 text-warning">
+        <AlertTriangle className="size-4 shrink-0" />
+        <span className="text-sm font-medium">Save these credentials — they won't be shown again</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {fields.map(({ label, value }) => (
+          <div key={label} className="flex flex-col gap-1">
+            <span className="text-xs text-muted font-mono">{label}</span>
+            <div className="group flex items-center gap-2">
+              <code className="flex-1 rounded bg-surface-secondary px-3 py-1.5 font-mono text-sm break-all select-all">
+                {value}
+              </code>
+              <Button
+                isIconOnly
+                variant="ghost"
+                size="sm"
+                onPress={() => copy(value, label)}
+                aria-label={`Copy ${label}`}
+                className="shrink-0"
+              >
+                {copied === label ? (
+                  <Check className="size-3.5 text-success" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function SchemaField({
@@ -267,27 +393,35 @@ export function TaskRunner({ task }: TaskRunnerProps) {
             {execution.error?.Valid && (
               <p className="text-sm text-danger">{execution.error.String}</p>
             )}
-            {execution.output && (
-              <div className="group relative">
-                <pre className="max-h-80 overflow-auto rounded-lg bg-surface-secondary p-4 text-sm leading-6 font-mono">
-                  {JSON.stringify(execution.output, null, 2)}
-                </pre>
-                <Button
-                  isIconOnly
-                  variant="ghost"
-                  size="sm"
-                  onPress={copyOutput}
-                  className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Copy output"
-                >
-                  {outputCopied ? (
-                    <Check className="size-3.5 text-success" />
-                  ) : (
-                    <Copy className="size-3.5" />
+            {execution.output && (() => {
+              const sensitiveFields = extractSensitiveFields(execution.output)
+              return (
+                <div className="flex flex-col gap-3">
+                  {sensitiveFields.length > 0 && (
+                    <SensitiveCredentials fields={sensitiveFields} />
                   )}
-                </Button>
-              </div>
-            )}
+                  <div className="group relative">
+                    <pre className="max-h-80 overflow-auto rounded-lg bg-surface-secondary p-4 text-sm leading-6 font-mono">
+                      {redactOutputJson(execution.output)}
+                    </pre>
+                    <Button
+                      isIconOnly
+                      variant="ghost"
+                      size="sm"
+                      onPress={copyOutput}
+                      className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Copy output"
+                    >
+                      {outputCopied ? (
+                        <Check className="size-3.5 text-success" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )
+            })()}
             <Button
               variant="ghost"
               size="sm"
