@@ -44,11 +44,11 @@ html[data-theme="dark"] body {
 	}
 
 	.section-shell {
-		@apply rounded-[1.75rem] border border-default-200/80 bg-background/80 shadow-sm backdrop-blur-sm;
+		@apply rounded-[1.75rem] border border-border bg-background/80 shadow-sm backdrop-blur-sm;
 	}
 
 	.compact-stat-card {
-		@apply rounded-[1.5rem] border border-default-200/70 bg-content1 shadow-none;
+		@apply rounded-[1.5rem] border border-border bg-surface shadow-none;
 	}
 
 	.compact-stat-card__value {
