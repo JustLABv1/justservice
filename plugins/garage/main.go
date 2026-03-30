@@ -87,15 +87,30 @@ type garageClient struct {
 
 func newGarageClient(baseURL, token string) *garageClient {
 	transport := http.DefaultTransport
-	if caFile := strings.TrimSpace(os.Getenv("GARAGE_EXTRA_CA_CERT")); caFile != "" {
+	if caDir := strings.TrimSpace(os.Getenv("GARAGE_CA_DIR")); caDir != "" {
 		pool, err := x509.SystemCertPool()
 		if err != nil {
 			pool = x509.NewCertPool()
 		}
-		if pem, err := os.ReadFile(caFile); err == nil {
-			pool.AppendCertsFromPEM(pem)
+		entries, err := os.ReadDir(caDir)
+		if err != nil {
+			log.Printf("[garage] warning: could not read GARAGE_CA_DIR %q: %v", caDir, err)
 		} else {
-			log.Printf("[garage] warning: could not read GARAGE_EXTRA_CA_CERT %q: %v", caFile, err)
+			loaded := 0
+			for _, e := range entries {
+				if e.IsDir() || strings.HasPrefix(e.Name(), "..") {
+					continue
+				}
+				pem, err := os.ReadFile(caDir + "/" + e.Name())
+				if err != nil {
+					log.Printf("[garage] warning: skipping %s: %v", e.Name(), err)
+					continue
+				}
+				if pool.AppendCertsFromPEM(pem) {
+					loaded++
+				}
+			}
+			log.Printf("[garage] loaded %d extra CA cert(s) from %s", loaded, caDir)
 		}
 		transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
 	}
