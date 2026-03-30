@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
@@ -86,34 +87,60 @@ type garageClient struct {
 }
 
 func newGarageClient(baseURL, token string) *garageClient {
-	transport := http.DefaultTransport
+	tlsCfg := &tls.Config{}
+
 	if caDir := strings.TrimSpace(os.Getenv("GARAGE_CA_DIR")); caDir != "" {
 		pool, err := x509.SystemCertPool()
 		if err != nil {
+			log.Printf("[garage] warning: could not load system cert pool: %v — using empty pool", err)
 			pool = x509.NewCertPool()
 		}
 		entries, err := os.ReadDir(caDir)
 		if err != nil {
 			log.Printf("[garage] warning: could not read GARAGE_CA_DIR %q: %v", caDir, err)
 		} else {
-			loaded := 0
 			for _, e := range entries {
 				if e.IsDir() || strings.HasPrefix(e.Name(), "..") {
 					continue
 				}
-				pem, err := os.ReadFile(caDir + "/" + e.Name())
+				data, err := os.ReadFile(caDir + "/" + e.Name())
 				if err != nil {
 					log.Printf("[garage] warning: skipping %s: %v", e.Name(), err)
 					continue
 				}
-				if pool.AppendCertsFromPEM(pem) {
-					loaded++
+				for rest := data; len(rest) > 0; {
+					var block *pem.Block
+					block, rest = pem.Decode(rest)
+					if block == nil {
+						break
+					}
+					if block.Type != "CERTIFICATE" {
+						continue
+					}
+					cert, err := x509.ParseCertificate(block.Bytes)
+					if err != nil {
+						log.Printf("[garage] warning: could not parse cert in %s: %v", e.Name(), err)
+						continue
+					}
+					pool.AddCert(cert)
+					log.Printf("[garage] trusted CA: subject=%q issuer=%q notAfter=%s (from %s)",
+						cert.Subject, cert.Issuer, cert.NotAfter.Format("2006-01-02"), e.Name())
 				}
 			}
-			log.Printf("[garage] loaded %d extra CA cert(s) from %s", loaded, caDir)
 		}
-		transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
+		tlsCfg.RootCAs = pool
 	}
+
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("GARAGE_TLS_SKIP_VERIFY")), "true") {
+		log.Printf("[garage] WARNING: TLS verification disabled via GARAGE_TLS_SKIP_VERIFY — do not use in production")
+		tlsCfg.InsecureSkipVerify = true
+	}
+
+	var transport http.RoundTripper = http.DefaultTransport
+	if tlsCfg.RootCAs != nil || tlsCfg.InsecureSkipVerify {
+		transport = &http.Transport{TLSClientConfig: tlsCfg}
+	}
+
 	return &garageClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
